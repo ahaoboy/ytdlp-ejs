@@ -9,6 +9,14 @@ use ejs::{process_input_with_runtime, RuntimeType};
 // Stack size for parsing large JavaScript files (16MB)
 const STACK_SIZE: usize = 16 * 1024 * 1024;
 
+#[cfg(all(
+    not(target_os = "windows"),
+    not(target_os = "android"),
+    not(target_env = "musl")
+))]
+#[global_allocator]
+static ALLOC: snmalloc_rs::SnMalloc = snmalloc_rs::SnMalloc;
+
 fn print_usage(program: &str) {
     eprintln!(
         "Usage: {} [OPTIONS] <player> [<type>:<request> ...]",
