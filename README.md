@@ -1,41 +1,42 @@
 # ytdlp-ejs
 
-YouTube player signature solver implemented in Rust.
+YouTube player signature solver implemented in Rust, using SWC for JavaScript parsing and multiple runtime options for execution.
 
-A Rust port of [yt-dlp-ejs](ts/README.md), using SWC for JavaScript parsing and multiple runtime options for execution.
+A Rust port of [yt-dlp/ejs](https://github.com/yt-dlp/ejs).
+
+📖 [Improving yt-dlp-ejs with Rust: Smaller and Faster](blog.md)
 
 ## Features
 
 - Parse YouTube player JavaScript code
 - Extract and execute signature (`sig`) decryption functions
 - Extract and execute throttle parameter (`n`) decryption functions
-- Multiple JavaScript runtime support (QuickJS, Deno)
+- Multiple JavaScript runtime support: QuickJS, Boa, Node, Deno, Bun
 - Cross-platform support (Windows, Linux, macOS)
+- Standalone binary under 5MB (with SWC + QuickJS)
 
 ## Installation
 
 ### From Source
 
 ```bash
-# Default build (with QuickJS)
+# Default build (QuickJS + Boa)
 cargo build --release
 
-# With Deno support
-cargo build --release --features deno
+# QuickJS only (smallest binary)
+cargo build --release --no-default-features --features qjs
 
-# With all features
-cargo build --release --features "qjs,deno"
+# Boa only
+cargo build --release --no-default-features --features boa
 ```
 
-The binary will be available at `target/release/ejs-rs`.
+Binary output: `target/release/ejs`
 
 ### As a Library
 
-Add to your `Cargo.toml`:
-
 ```toml
 [dependencies]
-ejs-rs = { path = ".", features = ["qjs"] }
+ejs = { git = "https://github.com/ahaoboy/ytdlp-ejs", features = ["qjs"] }
 ```
 
 ## Usage
@@ -43,36 +44,24 @@ ejs-rs = { path = ".", features = ["qjs"] }
 ### Command Line
 
 ```bash
-# Basic usage (uses default QuickJS runtime)
-ejs-rs <player_file> [n:<challenge>] [sig:<challenge>]
+# Basic usage
+ejs <player_file> [n:<challenge>] [sig:<challenge>]
 
 # Specify runtime
-ejs-rs --runtime deno <player_file> [n:<challenge>] [sig:<challenge>]
-
-# Examples
-ejs-rs player.js n:ZdZIqFPQK-Ty8wId
-ejs-rs --runtime qjs player.js sig:gN7a-hudCuAuPH6f...
-ejs-rs --runtime deno player.js n:ZdZIqFPQK-Ty8wId sig:gN7a-hudCuAuPH6f...
+ejs --runtime qjs player.js n:ZdZIqFPQK-Ty8wId
+ejs --runtime boa player.js sig:gN7a-hudCuAuPH6f...
+ejs --runtime node player.js n:ZdZIqFPQK-Ty8wId sig:gN7a-hudCuAuPH6f...
+ejs --runtime deno player.js n:ZdZIqFPQK-Ty8wId
+ejs --runtime bun player.js n:ZdZIqFPQK-Ty8wId
 ```
 
-Output is JSON:
+Output (JSON):
 
 ```json
 {
   "type": "result",
   "responses": [
-    {
-      "type": "result",
-      "data": {
-        "ZdZIqFPQK-Ty8wId": "qmtUsIz04xxiNW"
-      }
-    },
-    {
-      "type": "result",
-      "data": {
-        "gN7a-hudCuAuPH6f...": "ttJC2JfQdSswRAIg..."
-      }
-    }
+    { "type": "result", "data": { "ZdZIqFPQK-Ty8wId": "qmtUsIz04xxiNW" } }
   ]
 }
 ```
@@ -80,9 +69,8 @@ Output is JSON:
 ### As a Library
 
 ```rust
-use ejs::{process_input, process_input_with_runtime, Input, Request, RequestType, RuntimeType};
+use ejs::{process_input_with_runtime, Input, Request, RequestType, RuntimeType};
 
-// Using default runtime
 let input = Input::Player {
     player: player_code.to_string(),
     requests: vec![
@@ -93,105 +81,29 @@ let input = Input::Player {
     ],
     output_preprocessed: false,
 };
-let output = process_input(input);
 
-// Using specific runtime
-let output = process_input_with_runtime(input, RuntimeType::Deno);
+let output = process_input_with_runtime(input, RuntimeType::Qjs);
 ```
 
 ## Runtime Options
 
-| Runtime | Feature Flag | Description |
-|---------|--------------|-------------|
-| QuickJS | `qjs` (default) | Embedded JS engine, no external dependencies |
-| Deno | `deno` | Uses external Deno process, requires Deno installed |
+| Runtime | Feature | Binary Size | External Dependency |
+|---------|---------|-------------|---------------------|
+| QuickJS | `qjs` | ~5MB | None (embedded) |
+| Boa | `boa` | ~8MB | None (embedded) |
+| Node | - | - | Requires Node.js |
+| Deno | - | - | Requires Deno |
+| Bun | - | - | Requires Bun |
 
-## Development
+## Benchmark (Ubuntu)
 
-### Prerequisites
+| Runtime | Pass | Fail | Total | Time |
+|---------|------|------|-------|------|
+| qjs | 316 | 0 | 316 | 80.101s |
+| node | 316 | 0 | 316 | 87.947s |
+| bun | 316 | 0 | 316 | 147.197s |
+| boa | 316 | 0 | 316 | 178.557s |
+| deno | 316 | 0 | 316 | 238.250s |
 
-- Rust 1.70+
-- For Deno runtime: [Deno](https://deno.land/) installed
-- For testing: player files from YouTube (see below)
+Latest results: [bench.yml](https://github.com/ahaoboy/ytdlp-ejs/actions/workflows/bench.yml)
 
-### Download Test Players
-
-Download YouTube player files for testing:
-
-```bash
-cargo run --example download_players
-```
-
-This downloads player files to `ts/src/yt/solver/test/players/`.
-
-### Run Tests
-
-```bash
-# Run all tests with default runtime
-cargo run --example run_tests
-
-# Run unit tests
-cargo test
-
-# Test with Deno runtime
-cargo run --features deno --example run_tests
-```
-
-### Project Structure
-
-```
-src/
-├── lib.rs              # Library entry point
-├── main.rs             # CLI entry point
-├── types.rs            # Type definitions (Input, Output, Request, Response)
-├── utils.rs            # Utility functions
-├── test_data.rs        # Test cases data
-└── solver/
-    ├── mod.rs          # Module declarations
-    ├── main.rs         # Main processing logic
-    ├── solvers.rs      # Player code preprocessing (SWC parsing)
-    ├── sig.rs          # Signature function extraction
-    ├── n.rs            # N parameter function extraction
-    ├── setup.rs        # Browser environment simulation
-    └── runtime/
-        ├── mod.rs      # Runtime abstraction
-        ├── qjs.rs      # QuickJS implementation
-        └── deno.rs     # Deno implementation
-
-examples/
-├── download_players.rs # Download test player files
-├── run_tests.rs        # Run all solver tests
-└── single_test.rs      # Test a single player file
-```
-
-### Dependencies
-
-- [swc](https://swc.rs/) - Fast JavaScript/TypeScript parser
-- [rquickjs](https://github.com/aspect-build/rquickjs) - QuickJS JavaScript engine bindings (optional)
-- [serde](https://serde.rs/) - Serialization framework
-
-## How It Works
-
-1. **Parse**: YouTube player JavaScript is parsed into an AST using SWC
-2. **Extract**: The AST is analyzed to find signature and n-parameter decryption functions
-3. **Preprocess**: A minimal JavaScript bundle is generated with browser environment simulation
-4. **Execute**: The preprocessed code is executed in the selected runtime to solve challenges
-
-## Comparison with TypeScript Version
-
-| Feature | TypeScript (ejs) | Rust (ejs-rs) |
-|---------|------------------|---------------|
-| Parser | meriyah | SWC |
-| JS Engine | Native (Node/Deno/Bun) | QuickJS / Deno |
-| Code Generator | astring | SWC codegen |
-| Binary Size | N/A (requires runtime) | ~5MB standalone |
-| Startup Time | ~100ms | ~10ms (QuickJS) |
-
-## License
-
-This code is licensed under [Unlicense](https://unlicense.org/).
-
-## Related Projects
-
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - A youtube-dl fork with additional features
-- [yt-dlp-ejs](ts/README.md) - The original TypeScript implementation
