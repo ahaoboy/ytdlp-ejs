@@ -48,7 +48,28 @@ pub fn preprocess_player(data: &str) -> Result<String, String> {
         }
 
         // Keep expression statements and declarations
+        // Convert `function g(...)` to `g = function(...)` to avoid conflict with `var g = {}`
         match stmt {
+            Stmt::Decl(Decl::Fn(fn_decl)) if &*fn_decl.ident.sym == "g" => {
+                // Convert function declaration to assignment expression
+                let fn_expr = Expr::Fn(FnExpr {
+                    ident: None,
+                    function: fn_decl.function.clone(),
+                });
+                let assign = Expr::Assign(AssignExpr {
+                    span: fn_decl.function.span,
+                    op: AssignOp::Assign,
+                    left: AssignTarget::Simple(SimpleAssignTarget::Ident(BindingIdent {
+                        id: fn_decl.ident.clone(),
+                        type_ann: None,
+                    })),
+                    right: Box::new(fn_expr),
+                });
+                filtered_stmts.push(Stmt::Expr(ExprStmt {
+                    span: fn_decl.function.span,
+                    expr: Box::new(assign),
+                }));
+            }
             Stmt::Expr(expr_stmt) => match &*expr_stmt.expr {
                 Expr::Assign(_) | Expr::Lit(_) => {
                     filtered_stmts.push(stmt.clone());

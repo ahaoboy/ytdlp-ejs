@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-default = ["qjs"]
+default = ["qjs", "boa"]
 qjs = ["rquickjs"]
 boa = ["boa_engine", "boa_gc"]
 
