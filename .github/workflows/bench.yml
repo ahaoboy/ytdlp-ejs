@@ -1,0 +1,52 @@
+name: Bench
+
+permissions:
+  contents: write
+
+on:
+  push:
+  pull_request:
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -CeEuo pipefail {0}
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  bench:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macos-arm64
+            os: macos-latest
+          - name: windows
+            os: windows-latest
+          - name: ubuntu
+            os: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: latest
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: latest
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+      - name: run
+        run: |
+          cargo run --example generate_csv > cases.csv
+          cargo run --example download_players
+          cargo install --path=.
+
+      - name: bench
+        run: |
+          bash ./bench.sh
