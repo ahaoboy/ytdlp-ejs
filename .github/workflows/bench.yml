@@ -43,7 +43,8 @@ jobs:
           toolchain: stable
       - name: run
         run: |
-          cargo run -q --example generate_csv > cases.csv
+          cargo run --example generate_csv
+          cargo run --example generate_csv > cases.csv
           cargo run -q --example download_players
           cargo build --release -q
           cargo install -q --path=.
