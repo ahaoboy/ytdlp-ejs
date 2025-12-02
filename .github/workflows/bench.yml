@@ -43,9 +43,9 @@ jobs:
           toolchain: stable
       - name: run
         run: |
-          cargo run --example generate_csv > cases.csv
-          cargo run --example download_players
-          cargo install --path=.
+          cargo run -q --example generate_csv > cases.csv
+          cargo run -q --example download_players
+          cargo install -q --path=.
 
       - name: bench
         run: |
