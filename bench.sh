@@ -9,7 +9,7 @@ set -e
 
 CASES_FILE="cases.csv"
 PLAYERS_DIR="players"
-EXE="ejs-rs"
+EXE="ejs"
 MAX_TESTS=0  # 0 means all tests
 
 # Colors
