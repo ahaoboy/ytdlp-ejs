@@ -73,7 +73,7 @@ run_tests() {
     local sig_args=""
     local expected_list=""
 
-    while IFS=$'\t' read -r player type input expected || [ -n "$player" ]; do
+    while read -r player type input expected || [ -n "$player" ]; do
         [ -z "$player" ] && continue
 
         # Check if we've reached max tests
