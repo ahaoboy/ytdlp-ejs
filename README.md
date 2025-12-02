@@ -1,4 +1,4 @@
-# ejs-rs
+# ytdlp-ejs
 
 YouTube player signature solver implemented in Rust.
 

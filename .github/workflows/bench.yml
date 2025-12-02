@@ -47,6 +47,8 @@ jobs:
           cargo run -q --example download_players
           cargo install -q --path=.
 
+          ls -lh
+
       - name: bench
         run: |
           bash ./bench.sh
