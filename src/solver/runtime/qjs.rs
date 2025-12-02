@@ -22,8 +22,20 @@ impl JsRuntime for QuickJsSolver {
                 .map_err(|e| format!("Failed to set _result: {}", e))?;
 
             ctx.eval::<(), _>(code_owned.as_str()).map_err(|e| {
-                let err_str = format!("{:?}", e);
-                format!("Failed to execute code: {}", err_str)
+                // Try to get more detailed error information
+                let err_msg = match &e {
+                    rquickjs::Error::Exception => {
+                        // Try to get the exception details
+                        let exc = ctx.catch();
+                        if exc.is_null() || exc.is_undefined() {
+                            "Exception (no details available)".to_string()
+                        } else {
+                            format!("Exception: {:?}", exc)
+                        }
+                    }
+                    _ => format!("{:?}", e),
+                };
+                format!("Failed to execute code: {}", err_msg)
             })?;
 
             Ok::<(), String>(())
@@ -63,9 +75,20 @@ impl QuickJsSolver {
                 .get(func_name_owned.as_str())
                 .map_err(|e| format!("Failed to get {} function: {}", func_name_owned, e))?;
 
-            let result: String = func
-                .call((challenge_owned.as_str(),))
-                .map_err(|e| format!("Failed to call {} function: {}", func_name_owned, e))?;
+            let result: String = func.call((challenge_owned.as_str(),)).map_err(|e| {
+                let err_msg = match &e {
+                    rquickjs::Error::Exception => {
+                        let exc = ctx.catch();
+                        if exc.is_null() || exc.is_undefined() {
+                            "Exception (no details available)".to_string()
+                        } else {
+                            format!("Exception: {:?}", exc)
+                        }
+                    }
+                    _ => format!("{:?}", e),
+                };
+                format!("Failed to call {} function: {}", func_name_owned, err_msg)
+            })?;
             Ok(result)
         })
     }

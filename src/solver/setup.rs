@@ -32,3 +32,6 @@ if (typeof globalThis.self === "undefined") {
     globalThis.self = globalThis;
 }
 "#;
+
+/// Intl polyfill for QuickJS compatibility
+pub const INTL_POLYFILL: &str = include_str!("intl_polyfill.js");

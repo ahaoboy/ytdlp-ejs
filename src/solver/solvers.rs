@@ -5,7 +5,7 @@ use swc_ecma_codegen::{text_writer::JsWriter, Config, Emitter};
 use swc_ecma_parser::{lexer::Lexer, Parser, StringInput, Syntax};
 
 use super::n;
-use super::setup::SETUP_CODE;
+use super::setup::{INTL_POLYFILL, SETUP_CODE};
 use super::sig;
 
 /// Preprocess YouTube player code to extract sig and n functions
@@ -119,8 +119,8 @@ pub fn preprocess_player(data: &str) -> Result<String, String> {
 
     // Combine setup code, module code, and result assignments
     let result = format!(
-        "{}\n{}\n_result.n = {};\n_result.sig = {};",
-        SETUP_CODE, module_code, n_func, sig_func
+        "{}\n{}\n{}\n_result.n = {};\n_result.sig = {};",
+        INTL_POLYFILL, SETUP_CODE, module_code, n_func, sig_func
     );
 
     Ok(result)
