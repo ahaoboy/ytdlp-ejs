@@ -47,9 +47,12 @@ pub fn preprocess_player(data: &str) -> Result<String, String> {
             found_sig.push(sig_func);
         }
 
+        // Transform `g.XX = this || self` to `g.XX = self`
+        let stmt = transform_this_or_self(stmt);
+
         // Keep expression statements and declarations
         // Convert `function g(...)` to `g = function(...)` to avoid conflict with `var g = {}`
-        match stmt {
+        match &stmt {
             Stmt::Decl(Decl::Fn(fn_decl)) if &*fn_decl.ident.sym == "g" => {
                 // Convert function declaration to assignment expression
                 let fn_expr = Expr::Fn(FnExpr {
@@ -235,6 +238,37 @@ fn extract_main_block(module: &Module) -> Result<BlockStmt, String> {
         }
         _ => Err(format!("unexpected structure: {} items", module.body.len())),
     }
+}
+
+/// Transform `g.XX = this || self` to `g.XX = self`
+fn transform_this_or_self(stmt: &Stmt) -> Stmt {
+    if let Stmt::Expr(expr_stmt) = stmt {
+        if let Expr::Assign(assign_expr) = &*expr_stmt.expr {
+            // Check if right side is `this || self`
+            if let Expr::Bin(bin_expr) = &*assign_expr.right {
+                if bin_expr.op == BinaryOp::LogicalOr {
+                    // Check if left is `this` and right is `self`
+                    let is_this = matches!(&*bin_expr.left, Expr::This(_));
+                    let is_self = matches!(&*bin_expr.right, Expr::Ident(ident) if &*ident.sym == "self");
+
+                    if is_this && is_self {
+                        // Create new assignment with just `self`
+                        let new_assign = Expr::Assign(AssignExpr {
+                            span: assign_expr.span,
+                            op: assign_expr.op,
+                            left: assign_expr.left.clone(),
+                            right: bin_expr.right.clone(),
+                        });
+                        return Stmt::Expr(ExprStmt {
+                            span: expr_stmt.span,
+                            expr: Box::new(new_assign),
+                        });
+                    }
+                }
+            }
+        }
+    }
+    stmt.clone()
 }
 
 fn generate_code(cm: &Lrc<SourceMap>, module: &Module) -> String {
