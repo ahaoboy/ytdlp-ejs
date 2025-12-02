@@ -1,4 +1,4 @@
-//! Export test cases to CSV format
+//! Export test cases to CSV format (space-separated)
 //!
 //! Usage: cargo run --example generate_csv > cases.csv
 //!        cargo run --example generate_csv -- --output cases.csv
@@ -28,6 +28,7 @@ fn main() {
     };
 
     let mut count = 0;
+    let mut missing = 0;
 
     for test_case in TEST_CASES {
         let variants = test_case.variants.unwrap_or(ALL_VARIANTS);
@@ -38,25 +39,41 @@ fn main() {
 
             // Check if player file exists
             if !path.exists() {
+                missing += 1;
                 continue;
             }
 
             let filename = format!("{}-{}", test_case.player, variant);
 
-            // Export n tests
+            // Export n tests (space-separated)
             for step in test_case.n {
                 writeln!(output, "{} n {} {}", filename, step.input, step.expected)
                     .expect("Failed to write");
                 count += 1;
             }
 
-            // Export sig tests
+            // Export sig tests (space-separated)
             for step in test_case.sig {
                 writeln!(output, "{} sig {} {}", filename, step.input, step.expected)
                     .expect("Failed to write");
                 count += 1;
             }
         }
+    }
+
+    if count == 0 {
+        eprintln!("Error: No player files found!");
+        eprintln!();
+        eprintln!("Please download player files first:");
+        eprintln!("  cargo run --example download_players");
+        std::process::exit(1);
+    }
+
+    if missing > 0 {
+        eprintln!(
+            "Warning: {} player variants not found, run 'cargo run --example download_players' to download",
+            missing
+        );
     }
 
     if output_file.is_some() {
