@@ -7,6 +7,7 @@ edition = "2024"
 default = ["qjs", "boa"]
 qjs = ["rquickjs"]
 boa = ["boa_engine", "boa_gc"]
+bindgen = ["rquickjs/bindgen"]
 
 [dependencies]
 swc_ecma_parser = "28"
@@ -16,7 +17,7 @@ swc_common = { version = "18", features = ["tty-emitter"] }
 swc_atoms = "9"
 rquickjs = { version = "0.10", optional = true }
 # TODO: features = ["intl_bundled"] need 10mb
-boa_engine = { version = "0.21", optional = true}
+boa_engine = { version = "0.21", optional = true }
 boa_gc = { version = "0.21", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
