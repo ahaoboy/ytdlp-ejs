@@ -10,7 +10,7 @@ boa = ["boa_engine", "boa_gc"]
 bindgen = ["rquickjs/bindgen"]
 
 [dependencies]
-swc_ecma_parser = "28"
+swc_ecma_parser = "29"
 swc_ecma_ast = "19"
 swc_ecma_codegen = "21"
 swc_common = { version = "18", features = ["tty-emitter"] }
