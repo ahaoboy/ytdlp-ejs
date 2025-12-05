@@ -4,9 +4,9 @@
 //! Run specific runtime: cargo test --test runtime_tests --features qjs
 //! Run all runtimes: cargo test --test runtime_tests --all-features
 
-use ejs::test_data::{get_cache_path, ALL_VARIANTS, TEST_CASES};
+use ejs::test_data::{ALL_VARIANTS, TEST_CASES, get_cache_path};
 use ejs::types::{Input, Output, Request, RequestType, Response};
-use ejs::{process_input_with_runtime, RuntimeType};
+use ejs::{RuntimeType, process_input_with_runtime};
 use std::fs;
 use std::path::Path;
 
@@ -122,7 +122,7 @@ fn run_tests_with_runtime(runtime: RuntimeType) -> (usize, usize, Vec<String>) {
         match output {
             Output::Result { responses, .. } => {
                 // Check n results
-                if let Some(Response::Result { data }) = responses.get(0) {
+                if let Some(Response::Result { data }) = responses.first() {
                     for case in player_cases.iter().filter(|c| c.test_type == "n") {
                         if let Some(result) = data.get(&case.input) {
                             if result == &case.expected {
@@ -142,7 +142,7 @@ fn run_tests_with_runtime(runtime: RuntimeType) -> (usize, usize, Vec<String>) {
                             ));
                         }
                     }
-                } else if let Some(Response::Error { error }) = responses.get(0) {
+                } else if let Some(Response::Error { error }) = responses.first() {
                     for case in player_cases.iter().filter(|c| c.test_type == "n") {
                         failed += 1;
                         errors.push(format!(
@@ -210,11 +210,7 @@ fn test_qjs_runtime() {
         }
     }
 
-    eprintln!(
-        "\nQuickJS Results: {}/{} passed",
-        passed,
-        passed + failed
-    );
+    eprintln!("\nQuickJS Results: {}/{} passed", passed, passed + failed);
 
     assert!(
         failed == 0 || passed > 0,

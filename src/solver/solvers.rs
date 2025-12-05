@@ -1,8 +1,8 @@
 use std::collections::HashSet;
-use swc_common::{sync::Lrc, FileName, SourceMap};
+use swc_common::{FileName, SourceMap, sync::Lrc};
 use swc_ecma_ast::*;
-use swc_ecma_codegen::{text_writer::JsWriter, Config, Emitter};
-use swc_ecma_parser::{lexer::Lexer, Parser, StringInput, Syntax};
+use swc_ecma_codegen::{Config, Emitter, text_writer::JsWriter};
+use swc_ecma_parser::{Parser, StringInput, Syntax, lexer::Lexer};
 
 use super::n;
 use super::setup::{INTL_POLYFILL, SETUP_CODE};
@@ -134,40 +134,34 @@ fn extract_main_block(module: &Module) -> Result<BlockStmt, String> {
         1 => {
             // Pattern: (function() { ... }).call(this)
             let item = &module.body[0];
-            if let ModuleItem::Stmt(Stmt::Expr(expr_stmt)) = item {
-                if let Expr::Call(call_expr) = &*expr_stmt.expr {
-                    if let Callee::Expr(callee) = &call_expr.callee {
-                        if let Expr::Member(member) = &**callee {
-                            if let Expr::Fn(fn_expr) = &*member.obj {
-                                if let Some(body) = &fn_expr.function.body {
+            if let ModuleItem::Stmt(Stmt::Expr(expr_stmt)) = item
+                && let Expr::Call(call_expr) = &*expr_stmt.expr
+                    && let Callee::Expr(callee) = &call_expr.callee
+                        && let Expr::Member(member) = &**callee {
+                            if let Expr::Fn(fn_expr) = &*member.obj
+                                && let Some(body) = &fn_expr.function.body {
                                     return Ok(body.clone());
                                 }
-                            }
                             // Also try Paren wrapped function
-                            if let Expr::Paren(paren) = &*member.obj {
-                                if let Expr::Fn(fn_expr) = &*paren.expr {
-                                    if let Some(body) = &fn_expr.function.body {
+                            if let Expr::Paren(paren) = &*member.obj
+                                && let Expr::Fn(fn_expr) = &*paren.expr
+                                    && let Some(body) = &fn_expr.function.body {
                                         return Ok(body.clone());
                                     }
-                                }
-                            }
                         }
-                    }
-                }
-            }
             Err("unexpected structure (single item)".into())
         }
         2 => {
             // Pattern 1: var _yt_player={}; (function(g){...}).call(this)
             // Pattern 2: 'use strict'; (function() { ... })()
             let item = &module.body[1];
-            if let ModuleItem::Stmt(Stmt::Expr(expr_stmt)) = item {
-                if let Expr::Call(call_expr) = &*expr_stmt.expr {
-                    if let Callee::Expr(callee) = &call_expr.callee {
+            if let ModuleItem::Stmt(Stmt::Expr(expr_stmt)) = item
+                && let Expr::Call(call_expr) = &*expr_stmt.expr
+                    && let Callee::Expr(callee) = &call_expr.callee {
                         // Pattern 1: (function(g){...}).call(this) - MemberExpression
                         if let Expr::Member(member) = &**callee {
-                            if let Expr::Fn(fn_expr) = &*member.obj {
-                                if let Some(body) = &fn_expr.function.body {
+                            if let Expr::Fn(fn_expr) = &*member.obj
+                                && let Some(body) = &fn_expr.function.body {
                                     let mut block = body.clone();
                                     // Skip `var window = this;`
                                     if !block.stmts.is_empty() {
@@ -175,11 +169,10 @@ fn extract_main_block(module: &Module) -> Result<BlockStmt, String> {
                                     }
                                     return Ok(block);
                                 }
-                            }
                             // Also try Paren wrapped function
-                            if let Expr::Paren(paren) = &*member.obj {
-                                if let Expr::Fn(fn_expr) = &*paren.expr {
-                                    if let Some(body) = &fn_expr.function.body {
+                            if let Expr::Paren(paren) = &*member.obj
+                                && let Expr::Fn(fn_expr) = &*paren.expr
+                                    && let Some(body) = &fn_expr.function.body {
                                         let mut block = body.clone();
                                         // Skip `var window = this;`
                                         if !block.stmts.is_empty() {
@@ -187,12 +180,10 @@ fn extract_main_block(module: &Module) -> Result<BlockStmt, String> {
                                         }
                                         return Ok(block);
                                     }
-                                }
-                            }
                         }
                         // Pattern 2: (function() { ... })() - direct call
-                        if let Expr::Fn(fn_expr) = &**callee {
-                            if let Some(body) = &fn_expr.function.body {
+                        if let Expr::Fn(fn_expr) = &**callee
+                            && let Some(body) = &fn_expr.function.body {
                                 let mut block = body.clone();
                                 // Skip `var window = this;`
                                 if !block.stmts.is_empty() {
@@ -200,11 +191,10 @@ fn extract_main_block(module: &Module) -> Result<BlockStmt, String> {
                                 }
                                 return Ok(block);
                             }
-                        }
                         // Also try Paren wrapped function for direct call
                         if let Expr::Paren(paren) = &**callee {
-                            if let Expr::Fn(fn_expr) = &*paren.expr {
-                                if let Some(body) = &fn_expr.function.body {
+                            if let Expr::Fn(fn_expr) = &*paren.expr
+                                && let Some(body) = &fn_expr.function.body {
                                     let mut block = body.clone();
                                     // Skip `var window = this;`
                                     if !block.stmts.is_empty() {
@@ -212,13 +202,12 @@ fn extract_main_block(module: &Module) -> Result<BlockStmt, String> {
                                     }
                                     return Ok(block);
                                 }
-                            }
                             // Pattern: ((function(g){...}).call(this)) - Paren wrapping Call with Member
-                            if let Expr::Call(inner_call) = &*paren.expr {
-                                if let Callee::Expr(inner_callee) = &inner_call.callee {
-                                    if let Expr::Member(member) = &**inner_callee {
-                                        if let Expr::Fn(fn_expr) = &*member.obj {
-                                            if let Some(body) = &fn_expr.function.body {
+                            if let Expr::Call(inner_call) = &*paren.expr
+                                && let Callee::Expr(inner_callee) = &inner_call.callee
+                                    && let Expr::Member(member) = &**inner_callee
+                                        && let Expr::Fn(fn_expr) = &*member.obj
+                                            && let Some(body) = &fn_expr.function.body {
                                                 let mut block = body.clone();
                                                 // Skip `var window = this;`
                                                 if !block.stmts.is_empty() {
@@ -226,14 +215,8 @@ fn extract_main_block(module: &Module) -> Result<BlockStmt, String> {
                                                 }
                                                 return Ok(block);
                                             }
-                                        }
-                                    }
-                                }
-                            }
                         }
                     }
-                }
-            }
             Err("unexpected structure (two items)".into())
         }
         _ => Err(format!("unexpected structure: {} items", module.body.len())),
@@ -242,14 +225,15 @@ fn extract_main_block(module: &Module) -> Result<BlockStmt, String> {
 
 /// Transform `g.XX = this || self` to `g.XX = self`
 fn transform_this_or_self(stmt: &Stmt) -> Stmt {
-    if let Stmt::Expr(expr_stmt) = stmt {
-        if let Expr::Assign(assign_expr) = &*expr_stmt.expr {
+    if let Stmt::Expr(expr_stmt) = stmt
+        && let Expr::Assign(assign_expr) = &*expr_stmt.expr {
             // Check if right side is `this || self`
-            if let Expr::Bin(bin_expr) = &*assign_expr.right {
-                if bin_expr.op == BinaryOp::LogicalOr {
+            if let Expr::Bin(bin_expr) = &*assign_expr.right
+                && bin_expr.op == BinaryOp::LogicalOr {
                     // Check if left is `this` and right is `self`
                     let is_this = matches!(&*bin_expr.left, Expr::This(_));
-                    let is_self = matches!(&*bin_expr.right, Expr::Ident(ident) if &*ident.sym == "self");
+                    let is_self =
+                        matches!(&*bin_expr.right, Expr::Ident(ident) if &*ident.sym == "self");
 
                     if is_this && is_self {
                         // Create new assignment with just `self`
@@ -265,9 +249,7 @@ fn transform_this_or_self(stmt: &Stmt) -> Stmt {
                         });
                     }
                 }
-            }
         }
-    }
     stmt.clone()
 }
 

@@ -15,9 +15,9 @@ pub fn extract(stmt: &Stmt) -> Option<String> {
         Stmt::Decl(Decl::Var(var_decl)) => {
             let mut found = None;
             for decl in &var_decl.decls {
-                if let Some(init) = &decl.init {
-                    if let Expr::Fn(fn_expr) = &**init {
-                        if fn_expr.function.params.len() == 3 {
+                if let Some(init) = &decl.init
+                    && let Expr::Fn(fn_expr) = &**init
+                        && fn_expr.function.params.len() == 3 {
                             let name = match &decl.name {
                                 Pat::Ident(ident) => Some(&ident.id.sym),
                                 _ => None,
@@ -25,8 +25,6 @@ pub fn extract(stmt: &Stmt) -> Option<String> {
                             found = Some((fn_expr.function.body.as_ref()?, name));
                             break;
                         }
-                    }
-                }
             }
             found?
         }
@@ -98,13 +96,11 @@ pub fn extract(stmt: &Stmt) -> Option<String> {
 
     // Check for decodeURIComponent pattern in arguments
     let has_decode_uri = call_expr.args.iter().any(|arg| {
-        if let Expr::Call(inner_call) = &*arg.expr {
-            if let Callee::Expr(callee_expr) = &inner_call.callee {
-                if let Expr::Ident(ident) = &**callee_expr {
+        if let Expr::Call(inner_call) = &*arg.expr
+            && let Callee::Expr(callee_expr) = &inner_call.callee
+                && let Expr::Ident(ident) = &**callee_expr {
                     return &*ident.sym == "decodeURIComponent";
                 }
-            }
-        }
         false
     });
 

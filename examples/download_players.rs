@@ -2,7 +2,7 @@
 //!
 //! Usage: cargo run --example download_players
 
-use ejs::test_data::{get_cache_path, get_player_paths, ALL_VARIANTS, TEST_CASES};
+use ejs::test_data::{ALL_VARIANTS, TEST_CASES, get_cache_path, get_player_paths};
 use std::fs;
 use std::path::Path;
 
@@ -25,15 +25,13 @@ fn main() {
             }
 
             // Create parent directory if it doesn't exist
-            if let Some(parent) = path.parent() {
-                if !parent.exists() {
-                    if let Err(e) = fs::create_dir_all(parent) {
+            if let Some(parent) = path.parent()
+                && !parent.exists()
+                    && let Err(e) = fs::create_dir_all(parent) {
                         eprintln!("Failed to create directory {:?}: {}", parent, e);
                         failed += 1;
                         continue;
                     }
-                }
-            }
 
             let Some(player_path) = player_paths.get(variant) else {
                 eprintln!("Unknown variant: {}", variant);

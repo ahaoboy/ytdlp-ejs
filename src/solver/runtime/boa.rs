@@ -1,7 +1,7 @@
 use super::JsRuntime;
 use boa_engine::object::ObjectInitializer;
 use boa_engine::property::Attribute;
-use boa_engine::{js_string, Context, Source};
+use boa_engine::{Context, Source, js_string};
 use std::cell::RefCell;
 
 /// Boa-based JavaScript solver

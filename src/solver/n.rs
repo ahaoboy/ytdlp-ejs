@@ -24,17 +24,13 @@ fn extract_array_pattern(stmt: &Stmt) -> Option<String> {
                 return None;
             }
             for decl in &var_decl.decls {
-                if let Some(init) = &decl.init {
-                    if let Expr::Array(arr) = &**init {
-                        if arr.elems.len() == 1 {
-                            if let Some(Some(ExprOrSpread { expr, .. })) = arr.elems.first() {
-                                if let Expr::Ident(ident) = &**expr {
+                if let Some(init) = &decl.init
+                    && let Expr::Array(arr) = &**init
+                        && arr.elems.len() == 1
+                            && let Some(Some(ExprOrSpread { expr, .. })) = arr.elems.first()
+                                && let Expr::Ident(ident) = &**expr {
                                     return Some(ident.sym.to_string());
                                 }
-                            }
-                        }
-                    }
-                }
             }
             None
         }
@@ -42,19 +38,14 @@ fn extract_array_pattern(stmt: &Stmt) -> Option<String> {
         Stmt::Expr(expr_stmt) => {
             if let Expr::Assign(assign) = &*expr_stmt.expr {
                 // Check left is Identifier and operator is "="
-                if let AssignTarget::Simple(SimpleAssignTarget::Ident(_)) = &assign.left {
-                    if assign.op == AssignOp::Assign {
-                        if let Expr::Array(arr) = &*assign.right {
-                            if arr.elems.len() == 1 {
-                                if let Some(Some(ExprOrSpread { expr, .. })) = arr.elems.first() {
-                                    if let Expr::Ident(ident) = &**expr {
+                if let AssignTarget::Simple(SimpleAssignTarget::Ident(_)) = &assign.left
+                    && assign.op == AssignOp::Assign
+                        && let Expr::Array(arr) = &*assign.right
+                            && arr.elems.len() == 1
+                                && let Some(Some(ExprOrSpread { expr, .. })) = arr.elems.first()
+                                    && let Expr::Ident(ident) = &**expr {
                                         return Some(ident.sym.to_string());
                                     }
-                                }
-                            }
-                        }
-                    }
-                }
             }
             None
         }
@@ -145,11 +136,10 @@ fn extract_try_catch_pattern(stmt: &Stmt) -> Option<String> {
     }
 
     // Verify it's accessing with a literal index
-    if let MemberProp::Computed(computed) = &member_expr.prop {
-        if !matches!(&*computed.expr, Expr::Lit(Lit::Num(_))) {
+    if let MemberProp::Computed(computed) = &member_expr.prop
+        && !matches!(&*computed.expr, Expr::Lit(Lit::Num(_))) {
             return None;
         }
-    }
 
     Some(name)
 }

@@ -1,12 +1,8 @@
 use std::env;
 use std::fs;
 use std::process;
-use std::thread;
 
 use ejs::{RuntimeType, run};
-
-// Stack size for parsing large JavaScript files (16MB)
-const STACK_SIZE: usize = 16 * 1024 * 1024;
 
 #[cfg(all(
     not(target_os = "windows"),
@@ -103,27 +99,17 @@ fn main() {
         process::exit(1);
     }
 
-    // Spawn a thread with larger stack size to handle large JS files
-    let child = thread::Builder::new()
-        .stack_size(STACK_SIZE)
-        .spawn(move || match run(player, runtime_type, requests_args) {
-            Ok(output) => match serde_json::to_string(&output) {
-                Ok(json) => {
-                    println!("{}", json);
-                    0
-                }
-                Err(e) => {
-                    eprintln!("ERROR: Failed to serialize output: {}", e);
-                    1
-                }
-            },
-            Err(e) => {
-                eprintln!("ERROR: {}", e);
-                1
+    match run(player, runtime_type, requests_args) {
+        Ok(output) => match serde_json::to_string(&output) {
+            Ok(json) => {
+                println!("{}", json);
             }
-        })
-        .expect("Failed to spawn thread");
-
-    let exit_code = child.join().expect("Thread panicked");
-    process::exit(exit_code);
+            Err(e) => {
+                eprintln!("ERROR: Failed to serialize output: {}", e);
+            }
+        },
+        Err(e) => {
+            eprintln!("ERROR: {}", e);
+        }
+    }
 }

@@ -1,4 +1,4 @@
-use super::runtime::{create_solver, JsRuntime, RuntimeType};
+use super::runtime::{JsRuntime, RuntimeType, create_solver};
 use super::solvers::preprocess_player;
 use crate::types::{Input, Output, Request, RequestType, Response};
 

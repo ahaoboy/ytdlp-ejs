@@ -5,4 +5,4 @@ pub mod setup;
 pub mod sig;
 pub mod solvers;
 
-pub use runtime::{create_solver, JsRuntime, RuntimeType};
+pub use runtime::{JsRuntime, RuntimeType, create_solver};
