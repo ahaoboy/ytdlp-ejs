@@ -27,11 +27,12 @@ fn main() {
             // Create parent directory if it doesn't exist
             if let Some(parent) = path.parent()
                 && !parent.exists()
-                    && let Err(e) = fs::create_dir_all(parent) {
-                        eprintln!("Failed to create directory {:?}: {}", parent, e);
-                        failed += 1;
-                        continue;
-                    }
+                && let Err(e) = fs::create_dir_all(parent)
+            {
+                eprintln!("Failed to create directory {:?}: {}", parent, e);
+                failed += 1;
+                continue;
+            }
 
             let Some(player_path) = player_paths.get(variant) else {
                 eprintln!("Unknown variant: {}", variant);

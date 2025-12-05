@@ -1,27 +1,31 @@
 use std::collections::HashMap;
 
+#[cfg(feature = "extrnal")]
+pub mod deno;
 #[cfg(feature = "qjs")]
 pub mod qjs;
-
-pub mod deno;
 
 #[cfg(feature = "boa")]
 pub mod boa;
 
-pub mod node;
-
+#[cfg(feature = "extrnal")]
 pub mod bun;
+#[cfg(feature = "extrnal")]
+pub mod node;
 
 /// Runtime type for JavaScript execution
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RuntimeType {
     #[default]
-    Deno,
     #[cfg(feature = "qjs")]
     QuickJS,
     #[cfg(feature = "boa")]
     Boa,
+    #[cfg(feature = "extrnal")]
+    Deno,
+    #[cfg(feature = "extrnal")]
     Node,
+    #[cfg(feature = "extrnal")]
     Bun,
 }
 
@@ -30,10 +34,13 @@ impl RuntimeType {
         match s.to_lowercase().as_str() {
             #[cfg(feature = "qjs")]
             "qjs" | "quickjs" => Some(Self::QuickJS),
+            #[cfg(feature = "extrnal")]
             "deno" => Some(Self::Deno),
             #[cfg(feature = "boa")]
             "boa" => Some(Self::Boa),
+            #[cfg(feature = "extrnal")]
             "node" | "nodejs" => Some(Self::Node),
+            #[cfg(feature = "extrnal")]
             "bun" => Some(Self::Bun),
             _ => None,
         }
@@ -87,10 +94,13 @@ pub fn create_solver(runtime_type: RuntimeType, code: &str) -> Result<Box<dyn Js
     match runtime_type {
         #[cfg(feature = "qjs")]
         RuntimeType::QuickJS => Ok(Box::new(qjs::QuickJsSolver::from_prepared(code)?)),
+        #[cfg(feature = "extrnal")]
         RuntimeType::Deno => Ok(Box::new(deno::DenoSolver::from_prepared(code)?)),
         #[cfg(feature = "boa")]
         RuntimeType::Boa => Ok(Box::new(boa::BoaSolver::from_prepared(code)?)),
+        #[cfg(feature = "extrnal")]
         RuntimeType::Node => Ok(Box::new(node::NodeSolver::from_prepared(code)?)),
+        #[cfg(feature = "extrnal")]
         RuntimeType::Bun => Ok(Box::new(bun::BunSolver::from_prepared(code)?)),
     }
 }
