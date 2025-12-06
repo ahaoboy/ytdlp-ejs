@@ -20,7 +20,7 @@ A Rust port of [yt-dlp/ejs](https://github.com/yt-dlp/ejs).
 ### From Source
 
 ```bash
-# Default build (QuickJS + Boa)
+# Default build (QuickJS + Boa + External runtimes)
 cargo build --release
 
 # QuickJS only (smallest binary)
@@ -69,20 +69,23 @@ Output (JSON):
 ### As a Library
 
 ```rust
-use ejs::{process_input_with_runtime, Input, Request, RequestType, RuntimeType};
+use ejs::{
+    process_input_with_runtime, JsChallengeInput, JsChallengeRequest,
+    JsChallengeType, RuntimeType,
+};
 
-let input = Input::Player {
+let input = JsChallengeInput::Player {
     player: player_code.to_string(),
     requests: vec![
-        Request {
-            req_type: RequestType::N,
+        JsChallengeRequest {
+            challenge_type: JsChallengeType::N,
             challenges: vec!["ZdZIqFPQK-Ty8wId".to_string()],
         },
     ],
     output_preprocessed: false,
 };
 
-let output = process_input_with_runtime(input, RuntimeType::Qjs);
+let output = process_input_with_runtime(input, RuntimeType::QuickJS);
 ```
 
 ## Runtime Options
@@ -91,9 +94,9 @@ let output = process_input_with_runtime(input, RuntimeType::Qjs);
 |---------|---------|-------------|---------------------|
 | QuickJS | `qjs` | ~5MB | None (embedded) |
 | Boa | `boa` | ~8MB | None (embedded) |
-| Node | - | - | Requires Node.js |
-| Deno | - | - | Requires Deno |
-| Bun | - | - | Requires Bun |
+| Node | `external` | - | Requires Node.js |
+| Deno | `external` | - | Requires Deno |
+| Bun | `external` | - | Requires Bun |
 
 ## Benchmark (Ubuntu)
 
@@ -106,4 +109,3 @@ let output = process_input_with_runtime(input, RuntimeType::Qjs);
 | deno | 316 | 0 | 316 | 238.250s |
 
 Latest results: [bench.yml](https://github.com/ahaoboy/ytdlp-ejs/actions/workflows/bench.yml)
-

@@ -1,3 +1,7 @@
+//! N Parameter Extractor
+//!
+//! This module extracts the N parameter decryption function from YouTube player code.
+
 use swc_ecma_ast::*;
 
 /// Extract n parameter decryption function from AST node

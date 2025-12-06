@@ -1,54 +1,59 @@
-pub mod solver;
+//! EJS - JavaScript Challenge Solver Library
+
+pub mod builtin;
+pub mod director;
+pub mod provider;
+pub mod registry;
 pub mod test_data;
-pub mod types;
-pub mod utils;
 
-pub use solver::process::{process_input, process_input_with_runtime};
-pub use solver::solvers::preprocess_player;
-pub use solver::{JsRuntime, RuntimeType};
-pub use types::{Input, Output, Request, RequestType, Response};
+// Re-export public API
+pub use builtin::preprocessor::preprocess_player;
+pub use director::{process_input, process_input_with_runtime};
+pub use provider::{
+    JsChallengeError, JsChallengeInput, JsChallengeOutput, JsChallengeRequest, JsChallengeResponse,
+    JsChallengeType,
+};
+pub use registry::RuntimeType;
 
+/// Run challenge solver with the specified runtime
 pub fn run(
     player: String,
     runtime: RuntimeType,
     challenges: Vec<String>,
-) -> Result<Output, String> {
+) -> Result<JsChallengeOutput, JsChallengeError> {
     let mut n_challenges = Vec::new();
     let mut sig_challenges = Vec::new();
 
     for request in &challenges {
         let parts: Vec<&str> = request.splitn(2, ':').collect();
         if parts.len() != 2 {
-            return Err(format!("Invalid request format: {}", request));
+            return Err(JsChallengeError::Parse(format!(
+                "Invalid request format: {}",
+                request
+            )));
         }
 
-        let req_type = parts[0];
-        let challenge = parts[1].to_string();
-
-        match req_type {
-            "n" => n_challenges.push(challenge),
-            "sig" => sig_challenges.push(challenge),
-            _ => {
-                return Err(format!("Unsupported request type: {}", req_type));
-            }
+        match parts[0] {
+            "n" => n_challenges.push(parts[1].to_string()),
+            "sig" => sig_challenges.push(parts[1].to_string()),
+            t => return Err(JsChallengeError::Parse(format!("Unsupported type: {}", t))),
         }
     }
 
-    let input = Input::Player {
+    let input = JsChallengeInput::Player {
         player,
         requests: vec![
-            Request {
-                req_type: RequestType::N,
+            JsChallengeRequest {
+                challenge_type: JsChallengeType::N,
                 challenges: n_challenges,
             },
-            Request {
-                req_type: RequestType::Sig,
+            JsChallengeRequest {
+                challenge_type: JsChallengeType::Sig,
                 challenges: sig_challenges,
             },
         ],
         output_preprocessed: false,
     };
 
-    let output = process_input_with_runtime(input, runtime);
-    Ok(output)
+    Ok(process_input_with_runtime(input, runtime))
 }

@@ -5,8 +5,10 @@
 //! Run all runtimes: cargo test --test runtime_tests --all-features
 
 use ejs::test_data::{ALL_VARIANTS, TEST_CASES, get_cache_path};
-use ejs::types::{Input, Output, Request, RequestType, Response};
-use ejs::{RuntimeType, process_input_with_runtime};
+use ejs::{
+    JsChallengeInput, JsChallengeOutput, JsChallengeRequest, JsChallengeResponse, JsChallengeType,
+    RuntimeType, process_input_with_runtime,
+};
 use std::fs;
 use std::path::Path;
 
@@ -102,15 +104,15 @@ fn run_tests_with_runtime(runtime: RuntimeType) -> (usize, usize, Vec<String>) {
             .map(|c| c.input.clone())
             .collect();
 
-        let input = Input::Player {
+        let input = JsChallengeInput::Player {
             player: content,
             requests: vec![
-                Request {
-                    req_type: RequestType::N,
+                JsChallengeRequest {
+                    challenge_type: JsChallengeType::N,
                     challenges: n_challenges,
                 },
-                Request {
-                    req_type: RequestType::Sig,
+                JsChallengeRequest {
+                    challenge_type: JsChallengeType::Sig,
                     challenges: sig_challenges,
                 },
             ],
@@ -120,9 +122,9 @@ fn run_tests_with_runtime(runtime: RuntimeType) -> (usize, usize, Vec<String>) {
         let output = process_input_with_runtime(input, runtime);
 
         match output {
-            Output::Result { responses, .. } => {
+            JsChallengeOutput::Result { responses, .. } => {
                 // Check n results
-                if let Some(Response::Result { data }) = responses.first() {
+                if let Some(JsChallengeResponse::Result { data }) = responses.first() {
                     for case in player_cases.iter().filter(|c| c.test_type == "n") {
                         if let Some(result) = data.get(&case.input) {
                             if result == &case.expected {
@@ -142,7 +144,7 @@ fn run_tests_with_runtime(runtime: RuntimeType) -> (usize, usize, Vec<String>) {
                             ));
                         }
                     }
-                } else if let Some(Response::Error { error }) = responses.first() {
+                } else if let Some(JsChallengeResponse::Error { error }) = responses.first() {
                     for case in player_cases.iter().filter(|c| c.test_type == "n") {
                         failed += 1;
                         errors.push(format!(
@@ -153,7 +155,7 @@ fn run_tests_with_runtime(runtime: RuntimeType) -> (usize, usize, Vec<String>) {
                 }
 
                 // Check sig results
-                if let Some(Response::Result { data }) = responses.get(1) {
+                if let Some(JsChallengeResponse::Result { data }) = responses.get(1) {
                     for case in player_cases.iter().filter(|c| c.test_type == "sig") {
                         if let Some(result) = data.get(&case.input) {
                             if result == &case.expected {
@@ -173,7 +175,7 @@ fn run_tests_with_runtime(runtime: RuntimeType) -> (usize, usize, Vec<String>) {
                             ));
                         }
                     }
-                } else if let Some(Response::Error { error }) = responses.get(1) {
+                } else if let Some(JsChallengeResponse::Error { error }) = responses.get(1) {
                     for case in player_cases.iter().filter(|c| c.test_type == "sig") {
                         failed += 1;
                         errors.push(format!(
@@ -183,7 +185,7 @@ fn run_tests_with_runtime(runtime: RuntimeType) -> (usize, usize, Vec<String>) {
                     }
                 }
             }
-            Output::Error { error } => {
+            JsChallengeOutput::Error { error } => {
                 for case in &player_cases {
                     failed += 1;
                     errors.push(format!(
@@ -242,6 +244,7 @@ fn test_boa_runtime() {
     );
 }
 
+#[cfg(feature = "external")]
 #[test]
 fn test_deno_runtime() {
     let (passed, failed, errors) = run_tests_with_runtime(RuntimeType::Deno);
@@ -263,6 +266,7 @@ fn test_deno_runtime() {
     );
 }
 
+#[cfg(feature = "external")]
 #[test]
 fn test_node_runtime() {
     let (passed, failed, errors) = run_tests_with_runtime(RuntimeType::Node);
@@ -284,6 +288,7 @@ fn test_node_runtime() {
     );
 }
 
+#[cfg(feature = "external")]
 #[test]
 fn test_bun_runtime() {
     let (passed, failed, errors) = run_tests_with_runtime(RuntimeType::Bun);
