@@ -1,3 +1,7 @@
+//! Signature Extractor
+//!
+//! This module extracts the signature decryption function from YouTube player code.
+
 use swc_ecma_ast::*;
 
 /// Extract signature decryption function from AST node

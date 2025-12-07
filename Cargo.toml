@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-default = ["qjs", "boa", "extrnal"]
+default = ["qjs", "boa", "external"]
 qjs = ["rquickjs"]
 boa = ["boa_engine"]
 bindgen = ["rquickjs/bindgen"]
-extrnal = []
+external = []
 
 [dependencies]
 swc_ecma_parser = "29"

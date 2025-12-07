@@ -34,6 +34,13 @@ fn print_usage(program: &str) {
 }
 
 fn main() {
+    if let Err(e) = run_main() {
+        eprintln!("ERROR: {}", e);
+        process::exit(1);
+    }
+}
+
+fn run_main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
 
     if args.len() < 2 {
@@ -48,68 +55,40 @@ fn main() {
     let mut i = 1;
     while i < args.len() {
         let arg = &args[i];
-        if arg == "--runtime" {
-            i += 1;
-            if i >= args.len() {
-                eprintln!("ERROR: --runtime requires an argument");
-                process::exit(1);
-            }
-            runtime_type = match RuntimeType::parse(&args[i]) {
-                Some(rt) => rt,
-                None => {
-                    eprintln!(
-                        "ERROR: Unknown runtime '{}'. Available: {}",
+        match arg.as_str() {
+            "--runtime" => {
+                i += 1;
+                if i >= args.len() {
+                    return Err("--runtime requires an argument".into());
+                }
+                runtime_type = RuntimeType::parse(&args[i]).ok_or_else(|| {
+                    format!(
+                        "Unknown runtime '{}'. Available: {}",
                         args[i],
                         RuntimeType::available_runtimes().join(", ")
-                    );
-                    process::exit(1);
-                }
-            };
-        } else if arg == "--help" || arg == "-h" {
-            print_usage(&args[0]);
-            return;
-        } else if player_path.is_none() {
-            player_path = Some(arg.clone());
-        } else {
-            requests_args.push(arg.clone());
+                    )
+                })?;
+            }
+            "--help" | "-h" => {
+                print_usage(&args[0]);
+                return Ok(());
+            }
+            _ if player_path.is_none() => player_path = Some(arg.clone()),
+            _ => requests_args.push(arg.clone()),
         }
         i += 1;
     }
 
-    let player_path = match player_path {
-        Some(p) => p,
-        None => {
-            eprintln!("ERROR: Missing player file argument");
-            print_usage(&args[0]);
-            process::exit(1);
-        }
-    };
-
-    let player = match fs::read_to_string(&player_path) {
-        Ok(content) => content,
-        Err(e) => {
-            eprintln!("ERROR: Failed to read player file: {}", e);
-            process::exit(1);
-        }
-    };
+    let player_path = player_path.ok_or("Missing player file argument")?;
+    let player = fs::read_to_string(&player_path)?;
 
     if requests_args.is_empty() {
-        eprintln!("ERROR: At least one request is required");
-        print_usage(&args[0]);
-        process::exit(1);
+        return Err("At least one request is required".into());
     }
 
-    match run(player, runtime_type, requests_args) {
-        Ok(output) => match serde_json::to_string(&output) {
-            Ok(json) => {
-                println!("{}", json);
-            }
-            Err(e) => {
-                eprintln!("ERROR: Failed to serialize output: {}", e);
-            }
-        },
-        Err(e) => {
-            eprintln!("ERROR: {}", e);
-        }
-    }
+    let output = run(player, runtime_type, requests_args)?;
+    let json = serde_json::to_string(&output)?;
+    println!("{}", json);
+
+    Ok(())
 }
