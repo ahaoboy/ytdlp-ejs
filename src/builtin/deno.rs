@@ -24,7 +24,17 @@ impl DenoJCP {
         );
 
         let mut child = Command::new("deno")
-            .args(["run", "--no-prompt", "-"])
+            .args([
+                "run",
+                "--ext=js",
+                "--no-code-cache",
+                "--no-prompt",
+                "--no-remote",
+                "--no-lock",
+                "--node-modules-dir=none",
+                "--no-config",
+                "-",
+            ])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
