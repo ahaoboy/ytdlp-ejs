@@ -9,24 +9,23 @@ qjs = ["rquickjs"]
 boa = ["boa_engine"]
 bindgen = ["rquickjs/bindgen"]
 external = []
+snmalloc = ["dep:snmalloc-rs"]
 
 [dependencies]
-swc_ecma_parser = "29"
+swc_ecma_parser = "32"
 swc_ecma_ast = "19"
 swc_ecma_codegen = "21"
 swc_common = { version = "18" }
-rquickjs = { version = "0.10", optional = true }
+rquickjs = { version = "0.11", optional = true }
 # TODO: features = ["intl_bundled"] need 10mb
 boa_engine = { version = "0.21", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
-
-[target.'cfg(all(not(target_os = "windows"), not(target_os = "android"), not(target_env = "musl")))'.dependencies]
 snmalloc-rs = { version = "0.3", features = [
   "default",
   "lto",
-], default-features = false }
+], default-features = false, optional = true }
 
 [profile.release]
 debug = false

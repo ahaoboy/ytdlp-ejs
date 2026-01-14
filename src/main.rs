@@ -4,11 +4,7 @@ use std::process;
 
 use ejs::{RuntimeType, run};
 
-#[cfg(all(
-    not(target_os = "windows"),
-    not(target_os = "android"),
-    not(target_env = "musl")
-))]
+#[cfg(feature = "snmalloc")]
 #[global_allocator]
 static ALLOC: snmalloc_rs::SnMalloc = snmalloc_rs::SnMalloc;
 
