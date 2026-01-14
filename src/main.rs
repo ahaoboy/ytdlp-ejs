@@ -2,7 +2,7 @@ use std::env;
 use std::fs;
 use std::process;
 
-use ejs::{RuntimeType, run};
+use ytdlp_ejs::{RuntimeType, run};
 
 #[cfg(feature = "snmalloc")]
 #[global_allocator]

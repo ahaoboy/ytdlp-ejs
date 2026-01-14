@@ -2,7 +2,7 @@
 //!
 //! Usage: cargo run --example download_players
 
-use ejs::test_data::{ALL_VARIANTS, TEST_CASES, get_cache_path, get_player_paths};
+use ytdlp_ejs::test_data::{ALL_VARIANTS, TEST_CASES, get_cache_path, get_player_paths};
 use std::fs;
 use std::path::Path;
 

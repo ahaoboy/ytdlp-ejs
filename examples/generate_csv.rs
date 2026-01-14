@@ -3,7 +3,7 @@
 //! Usage: cargo run --example generate_csv > cases.csv
 //!        cargo run --example generate_csv -- --output cases.csv
 
-use ejs::test_data::{ALL_VARIANTS, TEST_CASES, get_cache_path};
+use ytdlp_ejs::test_data::{ALL_VARIANTS, TEST_CASES, get_cache_path};
 use std::env;
 use std::fs::File;
 use std::io::{self, Write};

@@ -4,8 +4,8 @@
 //! Run specific runtime: cargo test --test runtime_tests --features qjs
 //! Run all runtimes: cargo test --test runtime_tests --all-features
 
-use ejs::test_data::{ALL_VARIANTS, TEST_CASES, get_cache_path};
-use ejs::{
+use ytdlp_ejs::test_data::{ALL_VARIANTS, TEST_CASES, get_cache_path};
+use ytdlp_ejs::{
     JsChallengeInput, JsChallengeOutput, JsChallengeRequest, JsChallengeResponse, JsChallengeType,
     RuntimeType, process_input,
 };
