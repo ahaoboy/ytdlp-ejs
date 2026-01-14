@@ -8,7 +8,7 @@ pub mod test_data;
 
 // Re-export public API
 pub use builtin::preprocessor::preprocess_player;
-pub use director::{process_input, process_input_with_runtime};
+pub use director::{process_input };
 pub use provider::{
     JsChallengeError, JsChallengeInput, JsChallengeOutput, JsChallengeRequest, JsChallengeResponse,
     JsChallengeType,
@@ -55,5 +55,5 @@ pub fn run(
         output_preprocessed: false,
     };
 
-    Ok(process_input_with_runtime(input, runtime))
+    Ok(process_input(input, runtime))
 }

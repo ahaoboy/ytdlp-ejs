@@ -46,7 +46,7 @@ fn run_main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut player_path: Option<String> = None;
     let mut requests_args = vec![];
-    let mut runtime_type = RuntimeType::default();
+    let mut runtime_type = RuntimeType::QuickJS;
 
     let mut i = 1;
     while i < args.len() {

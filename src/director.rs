@@ -8,21 +8,13 @@ use crate::provider::{
 use crate::registry::RuntimeType;
 
 /// Process input with specified runtime and return output
-pub fn process_input_with_runtime(
-    input: JsChallengeInput,
-    runtime_type: RuntimeType,
-) -> JsChallengeOutput {
+pub fn process_input(input: JsChallengeInput, runtime_type: RuntimeType) -> JsChallengeOutput {
     match process_internal(input, runtime_type) {
         Ok(output) => output,
         Err(e) => JsChallengeOutput::Error {
             error: e.to_string(),
         },
     }
-}
-
-/// Process input with default runtime
-pub fn process_input(input: JsChallengeInput) -> JsChallengeOutput {
-    process_input_with_runtime(input, RuntimeType::default())
 }
 
 fn process_internal(

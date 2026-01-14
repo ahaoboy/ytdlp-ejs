@@ -6,9 +6,8 @@ use crate::builtin::JsRuntimeProvider;
 use crate::provider::JsChallengeError;
 
 /// Runtime type for JavaScript execution
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuntimeType {
-    #[default]
     #[cfg(feature = "qjs")]
     QuickJS,
     #[cfg(feature = "boa")]

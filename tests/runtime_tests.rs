@@ -7,7 +7,7 @@
 use ejs::test_data::{ALL_VARIANTS, TEST_CASES, get_cache_path};
 use ejs::{
     JsChallengeInput, JsChallengeOutput, JsChallengeRequest, JsChallengeResponse, JsChallengeType,
-    RuntimeType, process_input_with_runtime,
+    RuntimeType, process_input,
 };
 use std::fs;
 use std::path::Path;
@@ -119,7 +119,7 @@ fn run_tests_with_runtime(runtime: RuntimeType) -> (usize, usize, Vec<String>) {
             output_preprocessed: false,
         };
 
-        let output = process_input_with_runtime(input, runtime);
+        let output = process_input(input, runtime);
 
         match output {
             JsChallengeOutput::Result { responses, .. } => {
