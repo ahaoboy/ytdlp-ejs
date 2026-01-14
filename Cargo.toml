@@ -21,7 +21,7 @@ swc_ecma_parser = "32"
 swc_ecma_ast = "19"
 swc_ecma_codegen = "21"
 swc_common = { version = "18" }
-rquickjs = { version = "0.11", optional = true }
+rquickjs = { version = "0.11", optional = true, git = "https://github.com/DelSkayn/rquickjs.git" }
 # TODO: features = ["intl_bundled"] need 10mb
 boa_engine = { version = "0.21", optional = true }
 serde = { version = "1", features = ["derive"] }
