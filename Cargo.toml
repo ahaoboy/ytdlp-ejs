@@ -8,6 +8,10 @@ repository = "https://github.com/ahaoboy/ytdlp-ejs"
 homepage = "https://github.com/ahaoboy/ytdlp-ejs"
 authors = ["ahaoboy"]
 
+[[bin]]
+name = "ejs"
+path = "src/main.rs"
+
 [features]
 default = ["qjs", "boa", "external"]
 qjs = ["rquickjs"]
