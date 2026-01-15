@@ -45,8 +45,8 @@ jobs:
         run: |
           cargo run -q --example download_players
           cargo run -q --example generate_csv > cases.csv
-          cargo build --release -q
-          cargo install -q --path=.
+          # cargo build --release -q
+          cargo install -q --path=. --force
 
           ls -lh
 
