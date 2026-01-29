@@ -21,7 +21,7 @@ external = []
 snmalloc = ["dep:snmalloc-rs"]
 
 [dependencies]
-swc_ecma_parser = "33"
+swc_ecma_parser = { version = "33", default-features = false }
 swc_ecma_ast = "20"
 swc_ecma_codegen = "22"
 swc_common = { version = "18" }
