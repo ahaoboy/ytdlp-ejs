@@ -17,51 +17,59 @@ pub struct FunctionInfo {
     pub body: Vec<Stmt>,
 }
 
-/// Extract function info from a statement that could be a function definition.
-/// Matches patterns: FunctionDeclaration, ExpressionStatement(AssignmentExpression),
-/// and VariableDeclaration (like JS `identifier` pattern).
-fn extract_function_info(stmt: &Stmt) -> Option<FunctionInfo> {
+/// Extract ALL function infos from a statement.
+/// Matches patterns: FunctionDeclaration (non-async), ExpressionStatement(AssignmentExpression, non-async),
+/// and VariableDeclaration (returns ALL matching declarators, non-async).
+/// This mirrors the JS `identifier` pattern in nsig.ts.
+fn extract_function_infos(stmt: &Stmt) -> Vec<FunctionInfo> {
     match stmt {
-        // Pattern: function name(...) { ... }
+        // Pattern: function name(...) { ... } — must be non-async
         Stmt::Decl(Decl::Fn(fn_decl)) => {
-            fn_decl.function.body.as_ref()?;
-            let body = fn_decl.function.body.as_ref()?.stmts.clone();
-            Some(FunctionInfo {
+            if fn_decl.function.is_async || fn_decl.function.body.is_none() {
+                return vec![];
+            }
+            let body = fn_decl.function.body.as_ref().unwrap().stmts.clone();
+            vec![FunctionInfo {
                 name_expr: fn_decl.ident.sym.to_string(),
                 body,
-            })
+            }]
         }
-        // Pattern: name = function(...) { ... }
+        // Pattern: name = function(...) { ... } — must be non-async
         Stmt::Expr(expr_stmt) => {
             if let Expr::Assign(assign) = &*expr_stmt.expr {
                 if assign.op != AssignOp::Assign {
-                    return None;
+                    return vec![];
                 }
                 if let Expr::Fn(fn_expr) = &*assign.right {
-                    fn_expr.function.body.as_ref()?;
+                    if fn_expr.function.is_async || fn_expr.function.body.is_none() {
+                        return vec![];
+                    }
                     let name_expr = expr_to_code_string(&gen_assign_target_to_expr(&assign.left));
-                    let body = fn_expr.function.body.as_ref()?.stmts.clone();
-                    return Some(FunctionInfo { name_expr, body });
+                    let body = fn_expr.function.body.as_ref().unwrap().stmts.clone();
+                    return vec![FunctionInfo { name_expr, body }];
                 }
             }
-            None
+            vec![]
         }
-        // Pattern: var/let/const name = function(...) { ... }
+        // Pattern: var/let/const name = function(...) { ... } — must be non-async
+        // CRITICAL: check ALL declarators (JS uses anykey), not just the first
         Stmt::Decl(Decl::Var(var_decl)) => {
+            let mut results = Vec::new();
             for decl in &var_decl.decls {
                 if let Some(init) = &decl.init
-                    && let Expr::Fn(fn_expr) = &**init {
-                        if fn_expr.function.body.is_none() {
-                            continue;
-                        }
-                        let name_expr = pat_to_code_string(&decl.name);
-                        let body = fn_expr.function.body.as_ref()?.stmts.clone();
-                        return Some(FunctionInfo { name_expr, body });
+                    && let Expr::Fn(fn_expr) = &**init
+                {
+                    if fn_expr.function.is_async || fn_expr.function.body.is_none() {
+                        continue;
                     }
+                    let name_expr = pat_to_code_string(&decl.name);
+                    let body = fn_expr.function.body.as_ref().unwrap().stmts.clone();
+                    results.push(FunctionInfo { name_expr, body });
+                }
             }
-            None
+            results
         }
-        _ => None,
+        _ => vec![],
     }
 }
 
@@ -277,17 +285,14 @@ fn is_str_literal(expr: &Expr, value: &str) -> bool {
     matches!(expr, Expr::Lit(Lit::Str(s)) if s.value.as_str() == Some(value))
 }
 
-/// Extract solver info from a statement: find function containing "alr"/"yes" pattern.
-/// Returns the function info if found.
-pub fn extract_solver_info(stmt: &Stmt) -> Option<FunctionInfo> {
-    let func_info = extract_function_info(stmt)?;
-
-    // Check if the function body contains the "alr"/"yes" pattern
-    if !has_alr_yes_pattern(&func_info.body) {
-        return None;
-    }
-
-    Some(func_info)
+/// Extract solver infos from a statement: find ALL functions containing "alr"/"yes" pattern.
+/// Returns all matching function infos (for VarDecl, there may be multiple).
+pub fn extract_solver_infos(stmt: &Stmt) -> Vec<FunctionInfo> {
+    let func_infos = extract_function_infos(stmt);
+    func_infos
+        .into_iter()
+        .filter(|info| has_alr_yes_pattern(&info.body))
+        .collect()
 }
 
 /// Helper to parse a JS statement block from a string template

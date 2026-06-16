@@ -2,14 +2,8 @@
 if (typeof globalThis.XMLHttpRequest === "undefined") {
   globalThis.XMLHttpRequest = { prototype: {} };
 }
-if (typeof globalThis.window === "undefined") {
-  globalThis.window = Object.create(null);
-}
-if (typeof globalThis.g === "undefined") {
-  globalThis.g = Object.create(null);
-}
-if (typeof globalThis.URL === "undefined") {
-  window.location = {
+if (typeof URL === "undefined") {
+  globalThis.location = {
     hash: "",
     host: "www.youtube.com",
     hostname: "www.youtube.com",
@@ -23,7 +17,7 @@ if (typeof globalThis.URL === "undefined") {
     username: "",
   };
 } else {
-  window.location = new URL("https://www.youtube.com/watch?v=yt-dlp-wins");
+  globalThis.location = new URL("https://www.youtube.com/watch?v=yt-dlp-wins");
 }
 if (typeof globalThis.document === "undefined") {
   globalThis.document = Object.create(null);
@@ -33,4 +27,7 @@ if (typeof globalThis.navigator === "undefined") {
 }
 if (typeof globalThis.self === "undefined") {
   globalThis.self = globalThis;
+}
+if (typeof globalThis.window === "undefined") {
+  globalThis.window = globalThis;
 }

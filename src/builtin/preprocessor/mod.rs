@@ -78,7 +78,7 @@ pub fn preprocess_player(data: &str) -> Result<String, JsChallengeError> {
     let mut found_sig: Vec<Box<Expr>> = Vec::new();
 
     for stmt in block_stmts.iter() {
-        if let Some(info) = extract_shared::extract_solver_info(stmt) {
+        for info in extract_shared::extract_solver_infos(stmt) {
             let solver = extract_shared::generate_solver_expr(&info.name_expr)?;
             found_n.push(extract_shared::generate_n_solver_expr(&solver)?);
             found_sig.push(extract_shared::generate_sig_solver_expr(&solver)?);
