@@ -21,20 +21,24 @@ external = []
 snmalloc = ["dep:snmalloc-rs"]
 
 [dependencies]
-swc_ecma_parser = { version = "33", default-features = false }
-swc_ecma_ast = "20"
-swc_ecma_codegen = "22"
-swc_common = { version = "18" }
-rquickjs = { version = "0.11", optional = true, git = "https://github.com/DelSkayn/rquickjs.git" }
+# https://github.com/swc-project/swc/issues/11942
+# swc_ecma_parser = { version = "41", default-features = false }
+swc_ecma_parser = { version = "41" }
+swc_ecma_ast = "25"
+swc_ecma_codegen = "28"
+swc_common = { version = "23" }
+rquickjs = { version = "0.12", optional = true, git = "https://github.com/DelSkayn/rquickjs.git" }
 # TODO: features = ["intl_bundled"] need 10mb
 boa_engine = { version = "0.21", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
-snmalloc-rs = { version = "0.3", features = [
+snmalloc-rs = { version = "0.7", features = [
   "default",
   "lto",
 ], default-features = false, optional = true }
+# https://github.com/time-rs/time/issues/783
+time = "=0.3.47"
 
 [profile.release]
 debug = false

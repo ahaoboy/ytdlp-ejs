@@ -8,7 +8,7 @@ pub mod test_data;
 
 // Re-export public API
 pub use builtin::preprocessor::preprocess_player;
-pub use director::{process_input };
+pub use director::process_input;
 pub use provider::{
     JsChallengeError, JsChallengeInput, JsChallengeOutput, JsChallengeRequest, JsChallengeResponse,
     JsChallengeType,

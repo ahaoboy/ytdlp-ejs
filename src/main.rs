@@ -2,7 +2,7 @@ use std::env;
 use std::fs;
 use std::process;
 
-use ytdlp_ejs::{RuntimeType, run};
+use ytdlp_ejs::{run, RuntimeType};
 
 #[cfg(feature = "snmalloc")]
 #[global_allocator]
@@ -30,10 +30,18 @@ fn print_usage(program: &str) {
 }
 
 fn main() {
-    if let Err(e) = run_main() {
-        eprintln!("ERROR: {}", e);
-        process::exit(1);
-    }
+    // Use a larger stack (8 MB) to handle deeply nested AST processing
+    std::thread::Builder::new()
+        .stack_size(8 * 1024 * 1024)
+        .spawn(|| {
+            if let Err(e) = run_main() {
+                eprintln!("ERROR: {}", e);
+                std::process::exit(1);
+            }
+        })
+        .unwrap()
+        .join()
+        .unwrap();
 }
 
 fn run_main() -> Result<(), Box<dyn std::error::Error>> {

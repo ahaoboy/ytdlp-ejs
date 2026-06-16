@@ -1,24 +1,24 @@
 //! Player Preprocessor
+//!
+//! Parses YouTube player JavaScript, extracts the inner function body from
+//! the IIFE wrapper, filters statements, locates n/sig solver functions,
+//! and generates the final preprocessed code with solver assignments.
 
-mod n;
-mod sig;
+mod extract_shared;
 
-use std::collections::HashSet;
-use swc_common::{FileName, SourceMap, sync::Lrc};
+use swc_common::{sync::Lrc, FileName, SourceMap, SyntaxContext, DUMMY_SP};
 use swc_ecma_ast::*;
-use swc_ecma_codegen::{Config, Emitter, text_writer::JsWriter};
-use swc_ecma_parser::{Parser, StringInput, Syntax, lexer::Lexer};
+use swc_ecma_codegen::{text_writer::JsWriter, Config, Emitter};
+use swc_ecma_parser::{lexer::Lexer, Parser, StringInput, Syntax};
 
 use crate::builtin::polyfill::{INTL_POLYFILL, SETUP_CODE};
 use crate::provider::JsChallengeError;
 
-/// Preprocess YouTube player code to extract sig and n functions
+/// Preprocess YouTube player code to extract sig and n functions.
+/// Returns the final executable preprocessed JavaScript code.
 pub fn preprocess_player(data: &str) -> Result<String, JsChallengeError> {
     let cm: Lrc<SourceMap> = Default::default();
-    let fm = cm.new_source_file(
-        FileName::Custom("player.js".into()).into(),
-        data.to_string(),
-    );
+    let fm = cm.new_source_file(FileName::Custom("player.js".into()).into(), data.to_string());
 
     let lexer = Lexer::new(
         Syntax::Es(Default::default()),
@@ -28,104 +28,130 @@ pub fn preprocess_player(data: &str) -> Result<String, JsChallengeError> {
     );
 
     let mut parser = Parser::new_from(lexer);
-    let module = parser
+    let mut module = parser
         .parse_module()
         .map_err(|e| JsChallengeError::Parse(format!("{:?}", e)))?;
 
-    let block = extract_main_block(&module)?;
+    // Extract the inner function body from the IIFE wrapper
+    let block_stmts = extract_main_block_mut(&mut module)?;
 
-    let mut found_n: Vec<String> = Vec::new();
-    let mut found_sig: Vec<String> = Vec::new();
-    let mut filtered_stmts: Vec<Stmt> = Vec::new();
+    // Filter: keep only assignments, declarations, literal expressions
+    let mut kept = Vec::new();
+    for mut stmt in std::mem::take(block_stmts) {
+        let should_keep = match &stmt {
+            Stmt::Expr(e) => matches!(&*e.expr, Expr::Assign(_) | Expr::Lit(_)),
+            _ => true,
+        };
 
-    for stmt in &block.stmts {
-        if let Some(n_func) = n::extract(stmt) {
-            found_n.push(n_func);
+        if should_keep {
+            transform_this_or_self_mut(&mut stmt);
+
+            // Convert `function g(...)` → `g = function(...)` for QJS compat
+            if let Stmt::Decl(Decl::Fn(ref fn_decl)) = stmt
+                && &*fn_decl.ident.sym == "g" {
+                    let fn_expr = Expr::Fn(FnExpr {
+                        ident: None,
+                        function: fn_decl.function.clone(),
+                    });
+                    stmt = Stmt::Expr(ExprStmt {
+                        span: fn_decl.function.span,
+                        expr: Box::new(Expr::Assign(AssignExpr {
+                            span: fn_decl.function.span,
+                            op: AssignOp::Assign,
+                            left: AssignTarget::Simple(SimpleAssignTarget::Ident(
+                                BindingIdent {
+                                    id: fn_decl.ident.clone(),
+                                    type_ann: None,
+                                },
+                            )),
+                            right: Box::new(fn_expr),
+                        })),
+                    });
+                }
+            kept.push(stmt);
         }
-        if let Some(sig_func) = sig::extract(stmt) {
-            found_sig.push(sig_func);
-        }
+    }
+    *block_stmts = kept;
 
-        let stmt = transform_this_or_self(stmt);
+    // Extract solvers from block statements
+    let mut found_n: Vec<Box<Expr>> = Vec::new();
+    let mut found_sig: Vec<Box<Expr>> = Vec::new();
 
-        match &stmt {
-            Stmt::Decl(Decl::Fn(fn_decl)) if &*fn_decl.ident.sym == "g" => {
-                let fn_expr = Expr::Fn(FnExpr {
-                    ident: None,
-                    function: fn_decl.function.clone(),
-                });
-                let assign = Expr::Assign(AssignExpr {
-                    span: fn_decl.function.span,
-                    op: AssignOp::Assign,
-                    left: AssignTarget::Simple(SimpleAssignTarget::Ident(BindingIdent {
-                        id: fn_decl.ident.clone(),
-                        type_ann: None,
-                    })),
-                    right: Box::new(fn_expr),
-                });
-                filtered_stmts.push(Stmt::Expr(ExprStmt {
-                    span: fn_decl.function.span,
-                    expr: Box::new(assign),
-                }));
-            }
-            _ => filtered_stmts.push(stmt.clone()),
+    for stmt in block_stmts.iter() {
+        if let Some(info) = extract_shared::extract_solver_info(stmt) {
+            let solver = extract_shared::generate_solver_expr(&info.name_expr)?;
+            found_n.push(extract_shared::generate_n_solver_expr(&solver)?);
+            found_sig.push(extract_shared::generate_sig_solver_expr(&solver)?);
         }
     }
 
-    let unique_n: HashSet<_> = found_n.iter().collect();
-    let unique_sig: HashSet<_> = found_sig.iter().collect();
-
-    if unique_n.len() != 1 {
-        return Err(JsChallengeError::Preprocess(format!(
-            "found {} n functions: {:?}",
-            unique_n.len(),
-            found_n
-        )));
+    if found_n.is_empty() {
+        return Err(JsChallengeError::Preprocess("found 0 n functions".into()));
     }
-    if unique_sig.len() != 1 {
-        return Err(JsChallengeError::Preprocess(format!(
-            "found {} sig functions: {:?}",
-            unique_sig.len(),
-            found_sig
-        )));
+    if found_sig.is_empty() {
+        return Err(JsChallengeError::Preprocess("found 0 sig functions".into()));
     }
 
-    let n_func = &found_n[0];
-    let sig_func = &found_sig[0];
+    // Add _result.n / _result.sig assignments with multiTry wrappers
+    let _result = Ident::new("_result".into(), DUMMY_SP, SyntaxContext::empty());
+    block_stmts.push(make_result_assign(&_result, "n", extract_shared::generate_multi_try_expr(&found_n)?));
+    block_stmts.push(make_result_assign(&_result, "sig", extract_shared::generate_multi_try_expr(&found_sig)?));
 
-    let filtered_module = Module {
-        span: module.span,
-        body: filtered_stmts.into_iter().map(ModuleItem::Stmt).collect(),
-        shebang: None,
-    };
+    // Prepend polyfills (browser env shims) to the module body
+    let mut polyfills: Vec<ModuleItem> =
+        extract_shared::parse_script(INTL_POLYFILL)?
+            .into_iter()
+            .chain(extract_shared::parse_script(SETUP_CODE)?)
+            .map(ModuleItem::Stmt)
+            .collect();
 
-    let module_code = generate_code(&cm, &filtered_module)?;
+    let original_body = std::mem::take(&mut module.body);
+    polyfills.extend(original_body);
+    module.body = polyfills;
 
-    Ok(format!(
-        "{}\n{}\n{}\n_result.n = {};\n_result.sig = {};",
-        INTL_POLYFILL, SETUP_CODE, module_code, n_func, sig_func
-    ))
+    generate_code(&cm, &module)
 }
 
-fn extract_main_block(module: &Module) -> Result<BlockStmt, JsChallengeError> {
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+fn make_result_assign(result_ident: &Ident, prop: &str, expr: Box<Expr>) -> Stmt {
+    Stmt::Expr(ExprStmt {
+        span: DUMMY_SP,
+        expr: Box::new(Expr::Assign(AssignExpr {
+            span: DUMMY_SP,
+            op: AssignOp::Assign,
+            left: AssignTarget::Simple(SimpleAssignTarget::Member(MemberExpr {
+                span: DUMMY_SP,
+                obj: Box::new(Expr::Ident(result_ident.clone())),
+                prop: MemberProp::Ident(IdentName::new(prop.into(), DUMMY_SP)),
+            })),
+            right: expr,
+        })),
+    })
+}
+
+fn extract_main_block_mut(module: &mut Module) -> Result<&mut Vec<Stmt>, JsChallengeError> {
     match module.body.len() {
         1 => {
-            let item = &module.body[0];
+            let item = &mut module.body[0];
             if let ModuleItem::Stmt(Stmt::Expr(expr_stmt)) = item
-                && let Expr::Call(call_expr) = &*expr_stmt.expr
-                && let Callee::Expr(callee) = &call_expr.callee
-                && let Expr::Member(member) = &**callee
+                && let Expr::Call(call_expr) = &mut *expr_stmt.expr
+                && let Callee::Expr(callee) = &mut call_expr.callee
+                && let Expr::Member(member) = &mut **callee
             {
-                if let Expr::Fn(fn_expr) = &*member.obj
-                    && let Some(body) = &fn_expr.function.body
-                {
-                    return Ok(body.clone());
-                }
-                if let Expr::Paren(paren) = &*member.obj
-                    && let Expr::Fn(fn_expr) = &*paren.expr
-                    && let Some(body) = &fn_expr.function.body
-                {
-                    return Ok(body.clone());
+                match &mut *member.obj {
+                    Expr::Fn(fn_expr) => {
+                        if let Some(body) = &mut fn_expr.function.body {
+                            return Ok(&mut body.stmts);
+                        }
+                    }
+                    Expr::Paren(paren) => {
+                        if let Expr::Fn(fn_expr) = &mut *paren.expr
+                            && let Some(body) = &mut fn_expr.function.body {
+                                return Ok(&mut body.stmts);
+                            }
+                    }
+                    _ => {}
                 }
             }
             Err(JsChallengeError::Parse(
@@ -133,63 +159,68 @@ fn extract_main_block(module: &Module) -> Result<BlockStmt, JsChallengeError> {
             ))
         }
         2 => {
-            let item = &module.body[1];
+            let item = &mut module.body[1];
             if let ModuleItem::Stmt(Stmt::Expr(expr_stmt)) = item
-                && let Expr::Call(call_expr) = &*expr_stmt.expr
-                && let Callee::Expr(callee) = &call_expr.callee
+                && let Expr::Call(call_expr) = &mut *expr_stmt.expr
+                && let Callee::Expr(callee) = &mut call_expr.callee
             {
-                if let Expr::Member(member) = &**callee {
-                    if let Expr::Fn(fn_expr) = &*member.obj
-                        && let Some(body) = &fn_expr.function.body
-                    {
-                        let mut block = body.clone();
-                        if !block.stmts.is_empty() {
-                            block.stmts.remove(0);
+                match &mut **callee {
+                    Expr::Member(member) => {
+                        match &mut *member.obj {
+                            Expr::Fn(fn_expr) => {
+                                if let Some(body) = &mut fn_expr.function.body {
+                                    if !body.stmts.is_empty() {
+                                        body.stmts.remove(0);
+                                    }
+                                    return Ok(&mut body.stmts);
+                                }
+                            }
+                            Expr::Paren(paren) => {
+                                if let Expr::Fn(fn_expr) = &mut *paren.expr
+                                    && let Some(body) = &mut fn_expr.function.body {
+                                        if !body.stmts.is_empty() {
+                                            body.stmts.remove(0);
+                                        }
+                                        return Ok(&mut body.stmts);
+                                    }
+                            }
+                            _ => {}
                         }
-                        return Ok(block);
                     }
-                    if let Expr::Paren(paren) = &*member.obj
-                        && let Expr::Fn(fn_expr) = &*paren.expr
-                        && let Some(body) = &fn_expr.function.body
-                    {
-                        let mut block = body.clone();
-                        if !block.stmts.is_empty() {
-                            block.stmts.remove(0);
+                    Expr::Fn(fn_expr) => {
+                        if let Some(body) = &mut fn_expr.function.body {
+                            if !body.stmts.is_empty() {
+                                body.stmts.remove(0);
+                            }
+                            return Ok(&mut body.stmts);
                         }
-                        return Ok(block);
                     }
-                }
-                if let Expr::Fn(fn_expr) = &**callee
-                    && let Some(body) = &fn_expr.function.body
-                {
-                    let mut block = body.clone();
-                    if !block.stmts.is_empty() {
-                        block.stmts.remove(0);
-                    }
-                    return Ok(block);
-                }
-                if let Expr::Paren(paren) = &**callee {
-                    if let Expr::Fn(fn_expr) = &*paren.expr
-                        && let Some(body) = &fn_expr.function.body
-                    {
-                        let mut block = body.clone();
-                        if !block.stmts.is_empty() {
-                            block.stmts.remove(0);
+                    Expr::Paren(paren) => {
+                        match &mut *paren.expr {
+                            Expr::Fn(fn_expr) => {
+                                if let Some(body) = &mut fn_expr.function.body {
+                                    if !body.stmts.is_empty() {
+                                        body.stmts.remove(0);
+                                    }
+                                    return Ok(&mut body.stmts);
+                                }
+                            }
+                            Expr::Call(inner_call) => {
+                                if let Callee::Expr(inner_callee) = &mut inner_call.callee
+                                    && let Expr::Member(member) = &mut **inner_callee
+                                    && let Expr::Fn(fn_expr) = &mut *member.obj
+                                    && let Some(body) = &mut fn_expr.function.body
+                                {
+                                    if !body.stmts.is_empty() {
+                                        body.stmts.remove(0);
+                                    }
+                                    return Ok(&mut body.stmts);
+                                }
+                            }
+                            _ => {}
                         }
-                        return Ok(block);
                     }
-                    if let Expr::Call(inner_call) = &*paren.expr
-                        && let Callee::Expr(inner_callee) = &inner_call.callee
-                        && let Expr::Member(member) = &**inner_callee
-                        && let Expr::Fn(fn_expr) = &*member.obj
-                        && let Some(body) = &fn_expr.function.body
-                    {
-                        let mut block = body.clone();
-                        if !block.stmts.is_empty() {
-                            block.stmts.remove(0);
-                        }
-                        return Ok(block);
-                    }
+                    _ => {}
                 }
             }
             Err(JsChallengeError::Parse(
@@ -203,28 +234,19 @@ fn extract_main_block(module: &Module) -> Result<BlockStmt, JsChallengeError> {
     }
 }
 
-fn transform_this_or_self(stmt: &Stmt) -> Stmt {
+fn transform_this_or_self_mut(stmt: &mut Stmt) {
     if let Stmt::Expr(expr_stmt) = stmt
-        && let Expr::Assign(assign_expr) = &*expr_stmt.expr
-        && let Expr::Bin(bin_expr) = &*assign_expr.right
+        && let Expr::Assign(assign_expr) = &mut *expr_stmt.expr
+        && let Expr::Bin(bin_expr) = &mut *assign_expr.right
         && bin_expr.op == BinaryOp::LogicalOr
     {
         let is_this = matches!(&*bin_expr.left, Expr::This(_));
         let is_self = matches!(&*bin_expr.right, Expr::Ident(ident) if &*ident.sym == "self");
 
         if is_this && is_self {
-            return Stmt::Expr(ExprStmt {
-                span: expr_stmt.span,
-                expr: Box::new(Expr::Assign(AssignExpr {
-                    span: assign_expr.span,
-                    op: assign_expr.op,
-                    left: assign_expr.left.clone(),
-                    right: bin_expr.right.clone(),
-                })),
-            });
+            assign_expr.right = bin_expr.right.clone();
         }
     }
-    stmt.clone()
 }
 
 fn generate_code(cm: &Lrc<SourceMap>, module: &Module) -> Result<String, JsChallengeError> {
@@ -243,3 +265,4 @@ fn generate_code(cm: &Lrc<SourceMap>, module: &Module) -> Result<String, JsChall
     }
     String::from_utf8(buf).map_err(|e| JsChallengeError::Runtime(format!("UTF-8 error: {}", e)))
 }
+
