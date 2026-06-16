@@ -31,3 +31,8 @@ if (typeof globalThis.self === "undefined") {
 if (typeof globalThis.window === "undefined") {
   globalThis.window = globalThis;
 }
+// TV player uses `g` as a global without declaring it (no `var g`).
+// Standard players define `g` as an IIFE parameter, but TV players don't.
+if (typeof globalThis.g === "undefined") {
+  globalThis.g = {};
+}
