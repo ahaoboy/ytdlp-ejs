@@ -109,15 +109,48 @@ let output = process_input_with_runtime(input, RuntimeType::QuickJS);
 
 ## Benchmark (Ubuntu)
 
-| Runtime | Pass | Fail | Total | Time |
-|---------|------|------|-------|------|
-| qjs | 316 | 0 | 316 | 80.101s |
-| node | 316 | 0 | 316 | 87.947s |
-| bun | 316 | 0 | 316 | 147.197s |
-| boa | 316 | 0 | 316 | 178.557s |
-| deno | 316 | 0 | 316 | 238.250s |
+Latest results from CI ([bench.yml](https://github.com/ahaoboy/ytdlp-ejs/actions/workflows/bench.yml)):
 
-Latest results: [bench.yml](https://github.com/ahaoboy/ytdlp-ejs/actions/workflows/bench.yml)
+```
+========================================
+Runtime      Passed   Failed    Total         Time
+----------------------------------------
+qjs             316        0      316     82.227s
+deno            316        0      316    205.101s
+boa             316        0      316    508.184s
+node            316        0      316    105.107s
+bun             316        0      316    136.627s
+```
+
+> **qjs** in the table above refers to ejs itself (embedded QuickJS with SWC-based preprocessing).
+
+### Why is ejs faster than other runtimes?
+
+yt-dlp's built-in JSC solver uses [meriyah](https://github.com/meriyah/meriyah) (JS parser)
+and [astring](https://github.com/davidbonnet/astring) (JS code generator) to transform
+the large YouTube player JavaScript (~2.7MB) — extracting the n/sig solver functions,
+generating wrapper code, and executing it.
+
+On lightweight engines like QuickJS, the JS-based code generation step is extremely slow
+due to **massive string concatenation** during AST → code output. V8-based engines
+(Node, Deno, Bun) have highly optimized string handling and thus perform better on
+the pure-JS path, but are still bottlenecked by the meriyah parsing.
+
+This project replaces the entire AST pipeline with **[SWC](https://swc.rs)** (Rust):
+parsing, transformation, and code generation all happen in native code. The generated
+solver code is then executed via embedded QuickJS. The result:
+
+| Phase | yt-dlp built-in (qjs) | ejs (this project) |
+|-------|----------------------|---------------------|
+| JS parsing | meriyah (JS) | SWC (Rust) |
+| AST transform | meriyah (JS) | SWC (Rust) |
+| Code generation | astring (JS) | SWC (Rust) |
+| JS execution | QuickJS | QuickJS (embedded) |
+| **Total** | ~510s (Boa) | **~82s** |
+
+Even compared to V8 engines (Node, Deno, Bun), ejs wins because SWC's native
+preprocessing is faster than meriyah-on-V8, and embedded QuickJS has **zero
+process startup overhead** vs spawning a separate runtime.
 
 ## Related Projects
 
