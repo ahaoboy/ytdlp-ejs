@@ -57,7 +57,53 @@ jobs:
       - name: bench
         run: |
           bun ./bench.ts
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ubuntu
+            os: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
 
+      - name: Set up WARP
+        uses: fscarmen/warp-on-actions@v1.4
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        with:
+          stack: dual # Optional. Support [ ipv4, ipv6, dual ]. Default is dual.
+          mode: client # Optional. Support [ wireguard, client ]. Default is wireguard.
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: install yt-dlp
+        run: pip install -q yt-dlp
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: latest
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: canary
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: canary
+
+      - name: run
+        run: |
+          cargo run -q --example download_players
+          cargo run -q --example generate_csv > cases.csv
+          cargo install -q --path=. --force
+
+          ls -lh
+          curl -fsSL https://raw.githubusercontent.com/easy-install/easy-install/main/install.sh | sh
+          ei https://github.com/ahaoboy/quickjs-build
       - name: time (yt-dlp integration)
         run: |
           EJS_BIN="$HOME/.cargo/bin/ejs"
