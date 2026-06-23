@@ -13,7 +13,7 @@ name = "ejs"
 path = "src/main.rs"
 
 [features]
-default = ["qjs", "boa", "external", "tracing"]
+default = ["qjs", "external" ]
 qjs = ["dep:rquickjs"]
 boa = ["dep:boa_engine"]
 bindgen = ["rquickjs/bindgen"]

@@ -112,13 +112,13 @@ jobs:
           echo "=== node ==="
           time yt-dlp $YTDLP_ARGS --js-runtimes node
 
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: canary
-      - name: bench bun
-        run: |
-          echo "=== bun ==="
-          time yt-dlp $YTDLP_ARGS --js-runtimes bun
+      # - uses: oven-sh/setup-bun@v2
+      #   with:
+      #     bun-version: canary
+      # - name: bench bun
+      #   run: |
+      #     echo "=== bun ==="
+      #     time yt-dlp $YTDLP_ARGS --js-runtimes bun
 
       - uses: denoland/setup-deno@v2
         with:
