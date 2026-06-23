@@ -65,6 +65,12 @@ jobs:
           - name: ubuntu
             os: ubuntu-latest
     runs-on: ${{ matrix.os }}
+    env:
+      YTDLP_ARGS: >-
+        -v
+        --extractor-args youtube:jsc_trace=true
+        -F https://www.youtube.com/watch?v=BnnbP7pCIvQ
+        https://www.youtube.com/watch?v=E2Rj2gQAyPA
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -75,57 +81,49 @@ jobs:
         uses: fscarmen/warp-on-actions@v1.4
         if: ${{ matrix.os == 'ubuntu-latest' }}
         with:
-          stack: dual # Optional. Support [ ipv4, ipv6, dual ]. Default is dual.
-          mode: client # Optional. Support [ wireguard, client ]. Default is wireguard.
-
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
+          stack: dual
+          mode: client
 
       - name: install yt-dlp
         run: pip install -q yt-dlp
 
-      - uses: actions/setup-node@v6
-        with:
-          node-version: latest
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: canary
-      - uses: denoland/setup-deno@v2
-        with:
-          deno-version: canary
+      - name: build ejs
+        run: cargo install -q --path=. --force
+
+      # Pair: setup runtime → test it immediately
+
       - uses: easy-install/easy-setup@v1
         with:
           url: |-
             https://github.com/ahaoboy/quickjs-build
-      - name: run
+      - name: bench quickjs
         run: |
-          cargo run -q --example download_players
-          cargo run -q --example generate_csv > cases.csv
-          cargo install -q --path=. --force
-
-          ls -lh
-      - name: time (yt-dlp integration)
-        run: |
-          EJS_BIN="$HOME/.cargo/bin/ejs"
-          [[ "$RUNNER_OS" == "Windows" ]] && EJS_BIN="${EJS_BIN}.exe"
-          YTDLP_ARGS="-v --extractor-args youtube:jsc_trace=true -F https://www.youtube.com/watch?v=BnnbP7pCIvQ https://www.youtube.com/watch?v=E2Rj2gQAyPA"
-
-          echo "=== ejs (Rust, native pipeline) ==="
-          time yt-dlp $YTDLP_ARGS --js-runtimes "quickjs:${EJS_BIN}"
-
-          echo ""
           echo "=== quickjs (JS interpreter) ==="
           time yt-dlp $YTDLP_ARGS --js-runtimes quickjs
+      - name: bench ejs
+        run: |
+          echo "=== ejs (Rust, native pipeline) ==="
+          time yt-dlp $YTDLP_ARGS --js-runtimes "quickjs:$HOME/.cargo/bin/ejs"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: latest
+      - name: bench node
+        run: |
+          echo "=== node ==="
+          time yt-dlp $YTDLP_ARGS --js-runtimes node
 
-          echo ""
-          echo "=== deno ==="
-          time yt-dlp $YTDLP_ARGS --js-runtimes deno
-
-          echo ""
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: canary
+      - name: bench bun
+        run: |
           echo "=== bun ==="
           time yt-dlp $YTDLP_ARGS --js-runtimes bun
 
-          echo ""
-          echo "=== node ==="
-          time yt-dlp $YTDLP_ARGS --js-runtimes node
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: canary
+      - name: bench deno
+        run: |
+          echo "=== deno ==="
+          time yt-dlp $YTDLP_ARGS --js-runtimes deno
