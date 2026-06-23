@@ -51,3 +51,5 @@ jobs:
           RUSTFLAGS: ${{ matrix.RUSTFLAGS }}
           tag: nightly
           allowUpdates: true
+          no-default-features: true
+          features: external,qjs
