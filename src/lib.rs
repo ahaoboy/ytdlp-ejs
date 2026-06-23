@@ -5,8 +5,10 @@ pub mod director;
 pub mod provider;
 pub mod registry;
 pub mod test_data;
+pub mod trace;
 
-// Re-export public API
+// ── Public API re-exports ───────────────────────────────────────────────────
+
 pub use builtin::preprocessor::preprocess_player;
 pub use director::process_input;
 pub use provider::{
@@ -21,6 +23,8 @@ pub fn run(
     runtime: RuntimeType,
     challenges: Vec<String>,
 ) -> Result<JsChallengeOutput, JsChallengeError> {
+    trace_span!("run", ?runtime, player_len = player.len());
+
     let mut n_challenges = Vec::new();
     let mut sig_challenges = Vec::new();
 
@@ -39,6 +43,14 @@ pub fn run(
             t => return Err(JsChallengeError::Parse(format!("Unsupported type: {}", t))),
         }
     }
+
+    debug!(
+        n_count = n_challenges.len(),
+        sig_count = sig_challenges.len(),
+        ?n_challenges,
+        ?sig_challenges,
+        "Parsed challenges"
+    );
 
     let input = JsChallengeInput::Player {
         player,

@@ -13,12 +13,13 @@ name = "ejs"
 path = "src/main.rs"
 
 [features]
-default = ["qjs", "boa", "external"]
+default = ["qjs", "boa", "external", "tracing"]
 qjs = ["dep:rquickjs"]
 boa = ["dep:boa_engine"]
 bindgen = ["rquickjs/bindgen"]
 external = []
 snmalloc = ["dep:snmalloc-rs"]
+tracing = ["dep:tracing", "dep:tracing-subscriber"]
 
 [dependencies]
 # https://github.com/swc-project/swc/issues/11942
@@ -38,7 +39,11 @@ snmalloc-rs = { version = "0.7", features = [
   "lto",
 ], default-features = false, optional = true }
 # https://github.com/time-rs/time/issues/783
-time = "=0.3.47"
+# time = "=0.3.47"
+
+# Logging (optional — controlled by "tracing" feature, enabled by default)
+tracing = { version = "0.1", optional = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 
 [profile.release]
 debug = false

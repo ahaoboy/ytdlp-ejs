@@ -2,7 +2,8 @@ use std::env;
 use std::fs;
 use std::process;
 
-use ytdlp_ejs::{run, RuntimeType};
+use ytdlp_ejs::trace::{debug, info};
+use ytdlp_ejs::{RuntimeType, run};
 
 #[cfg(feature = "snmalloc")]
 #[global_allocator]
@@ -30,6 +31,18 @@ fn print_usage(program: &str) {
 }
 
 fn main() {
+    // Initialize tracing subscriber when the "tracing" feature is enabled.
+    // Controlled by RUST_LOG env var. Default: show warnings and errors only.
+    // Enable: RUST_LOG=info or RUST_LOG=ytdlp_ejs=debug
+    #[cfg(feature = "tracing")]
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("warn")),
+        )
+        .with_target(false)
+        .init();
+
     // Use a larger stack (8 MB) to handle deeply nested AST processing
     std::thread::Builder::new()
         .stack_size(8 * 1024 * 1024)
@@ -72,6 +85,7 @@ fn run_main() -> Result<(), Box<dyn std::error::Error>> {
                         RuntimeType::available_runtimes().join(", ")
                     )
                 })?;
+                debug!(?runtime_type, "Runtime selected");
             }
             "--help" | "-h" => {
                 print_usage(&args[0]);
@@ -84,15 +98,19 @@ fn run_main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let player_path = player_path.ok_or("Missing player file argument")?;
+    debug!(path = %player_path, "Loading player file");
     let player = fs::read_to_string(&player_path)?;
+    info!(size = player.len(), path = %player_path, "Loaded player file");
 
     if requests_args.is_empty() {
         return Err("At least one request is required".into());
     }
 
+    debug!(?requests_args, ?runtime_type, "Processing requests");
     let output = run(player, runtime_type, requests_args)?;
     let json = serde_json::to_string(&output)?;
     println!("{}", json);
 
+    info!("Done");
     Ok(())
 }

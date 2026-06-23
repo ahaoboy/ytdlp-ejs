@@ -1,6 +1,7 @@
 //! QuickJS JS Challenge Provider
 
 use crate::provider::JsChallengeError;
+use crate::trace::{debug, info};
 use rquickjs::{Context, Function, Object, Runtime};
 
 /// QuickJS-based JavaScript Challenge Provider
@@ -10,6 +11,7 @@ pub struct QuickJSJCP {
 
 impl QuickJSJCP {
     pub fn new(code: &str) -> Result<Self, JsChallengeError> {
+        info!("Creating QuickJS runtime");
         let runtime = Runtime::new()
             .map_err(|e| JsChallengeError::Runtime(format!("Failed to create runtime: {}", e)))?;
         let context = Context::full(&runtime)
@@ -24,6 +26,10 @@ impl QuickJSJCP {
                 .set("_result", result_obj)
                 .map_err(|e| JsChallengeError::Runtime(format!("Failed to set _result: {}", e)))?;
 
+            debug!(
+                code_len = code.len(),
+                "Evaluating preprocessed code in QuickJS"
+            );
             ctx.eval::<(), _>(code).map_err(|e| {
                 let err_msg = match &e {
                     rquickjs::Error::Exception => {
@@ -39,6 +45,7 @@ impl QuickJSJCP {
                 JsChallengeError::Runtime(format!("Failed to execute: {}", err_msg))
             })?;
 
+            info!("QuickJS code evaluation complete");
             Ok::<(), JsChallengeError>(())
         })?;
 
@@ -55,6 +62,7 @@ impl QuickJSJCP {
 
     fn call_solver(&self, func_name: &str, challenge: &str) -> Result<String, JsChallengeError> {
         self.context.with(|ctx| {
+            debug!(%func_name, %challenge, "Calling solver");
             let globals = ctx.globals();
             let result: Object = globals
                 .get("_result")
@@ -77,6 +85,7 @@ impl QuickJSJCP {
                 };
                 JsChallengeError::Runtime(format!("Failed to call {}: {}", func_name, err_msg))
             })?;
+            debug!(%func_name, %challenge, result_len = result.len(), result, "Solver returned");
             Ok(result)
         })
     }
