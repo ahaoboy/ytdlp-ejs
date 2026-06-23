@@ -41,6 +41,10 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
+
+      - name: install yt-dlp
+        run: pip install -q yt-dlp
+
       - name: run
         run: |
           cargo run -q --example download_players
@@ -57,25 +61,24 @@ jobs:
       - name: time (yt-dlp integration)
         run: |
           EJS_BIN="$HOME/.cargo/bin/ejs"
-          # On Windows runners cargo install adds .exe
           [[ "$RUNNER_OS" == "Windows" ]] && EJS_BIN="${EJS_BIN}.exe"
           YTDLP_ARGS="-v --extractor-args youtube:jsc_trace=true -F https://www.youtube.com/watch?v=BnnbP7pCIvQ https://www.youtube.com/watch?v=E2Rj2gQAyPA"
 
           echo "=== ejs (Rust, native pipeline) ==="
-          { time yt-dlp $YTDLP_ARGS --js-runtimes "quickjs:${EJS_BIN}"; } 2>&1 | tail -10
+          time yt-dlp $YTDLP_ARGS --js-runtimes "quickjs:${EJS_BIN}"
 
           echo ""
           echo "=== quickjs (JS interpreter) ==="
-          { time yt-dlp $YTDLP_ARGS --js-runtimes quickjs; } 2>&1 | tail -10
+          time yt-dlp $YTDLP_ARGS --js-runtimes quickjs
 
           echo ""
           echo "=== deno ==="
-          { time yt-dlp $YTDLP_ARGS --js-runtimes deno; } 2>&1 | tail -10
+          time yt-dlp $YTDLP_ARGS --js-runtimes deno
 
           echo ""
           echo "=== bun ==="
-          { time yt-dlp $YTDLP_ARGS --js-runtimes bun; } 2>&1 | tail -10
+          time yt-dlp $YTDLP_ARGS --js-runtimes bun
 
           echo ""
           echo "=== node ==="
-          { time yt-dlp $YTDLP_ARGS --js-runtimes node; } 2>&1 | tail -10
+          time yt-dlp $YTDLP_ARGS --js-runtimes node
