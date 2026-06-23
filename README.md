@@ -66,6 +66,15 @@ Output (JSON):
 }
 ```
 
+### Integration with yt-dlp
+
+Use `--js-runtimes` to plug ejs into yt-dlp as an external JavaScript runtime.
+Enable `jsc_trace=true` to see challenge/response pairs in yt-dlp's verbose output.
+
+```bash
+ yt-dlp -v --extractor-args "youtube:jsc_trace=true" -F "https://www.youtube.com/watch?v=BnnbP7pCIvQ" --js-runtimes "quickjs:/path/ejs.exe"
+```
+
 ### As a Library
 
 ```rust
@@ -109,3 +118,8 @@ let output = process_input_with_runtime(input, RuntimeType::QuickJS);
 | deno | 316 | 0 | 316 | 238.250s |
 
 Latest results: [bench.yml](https://github.com/ahaoboy/ytdlp-ejs/actions/workflows/bench.yml)
+
+## Related Projects
+
+- [ytdlp-jsc](https://github.com/ahaoboy/ytdlp-jsc) — YouTube player signature solver using SWC + QuickJS
+- [musicfree-tauri](https://github.com/ahaoboy/musicfree-tauri) — MusicFree desktop client built with Tauri

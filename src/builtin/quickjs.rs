@@ -14,6 +14,7 @@ impl QuickJSJCP {
         info!("Creating QuickJS runtime");
         let runtime = Runtime::new()
             .map_err(|e| JsChallengeError::Runtime(format!("Failed to create runtime: {}", e)))?;
+        runtime.set_max_stack_size(16 * 1024 * 1024);
         let context = Context::full(&runtime)
             .map_err(|e| JsChallengeError::Runtime(format!("Failed to create context: {}", e)))?;
 
@@ -89,4 +90,59 @@ impl QuickJSJCP {
             Ok(result)
         })
     }
+}
+
+// ── Script mode (bare JS interpreter for yt-dlp integration) ────────────────
+//
+// When invoked as `ejs --script <file>`, we act as a QuickJS-compatible JS
+// runtime. yt-dlp passes the full solver program (lib + core + jsc() call)
+// via a temp file, and expects the JSON result from console.log() on stdout.
+
+/// Execute arbitrary JavaScript code using embedded QuickJS.
+/// Captures all `console.log()` output and returns it as a String.
+/// Errors during JS evaluation are returned as `JsChallengeError::Runtime`.
+pub fn run_script(code: &str) -> Result<String, JsChallengeError> {
+    info!(code_len = code.len(), "Running script via embedded QuickJS");
+
+    let runtime = Runtime::new()
+        .map_err(|e| JsChallengeError::Runtime(format!("Failed to create runtime: {}", e)))?;
+    // Default JS stack is only 256KB — far too small for meriyah-based
+    // yt-dlp solver scripts. Bump to 16MB to match the Rust thread stack.
+    runtime.set_max_stack_size(16 * 1024 * 1024);
+    let context = Context::full(&runtime)
+        .map_err(|e| JsChallengeError::Runtime(format!("Failed to create context: {}", e)))?;
+
+    context.with(|ctx| {
+        // Override console.log to capture output into a JS array.
+        // After execution we read the array back as a Vec<String>.
+        ctx.eval::<(), _>(
+            "var __ejs_console_output = []; \
+             var console = { log: function(m) { __ejs_console_output.push(''+m); } };",
+        )
+        .map_err(|e| {
+            JsChallengeError::Runtime(format!("Failed to setup console capture: {:?}", e))
+        })?;
+
+        ctx.eval::<(), _>(code).map_err(|e| {
+            let err_msg = match &e {
+                rquickjs::Error::Exception => {
+                    let exc = ctx.catch();
+                    if exc.is_null() || exc.is_undefined() {
+                        "Exception (no details)".to_string()
+                    } else {
+                        format!("Exception: {:?}", exc)
+                    }
+                }
+                _ => format!("{:?}", e),
+            };
+            JsChallengeError::Runtime(format!("Script execution error: {}", err_msg))
+        })?;
+
+        let output: Vec<String> = ctx.globals().get("__ejs_console_output").map_err(|e| {
+            JsChallengeError::Runtime(format!("Failed to read console output: {:?}", e))
+        })?;
+
+        info!(lines = output.len(), "Script completed");
+        Ok(output.join("\n"))
+    })
 }

@@ -17,6 +17,9 @@ pub use provider::{
 };
 pub use registry::RuntimeType;
 
+#[cfg(feature = "qjs")]
+pub use builtin::quickjs::run_script;
+
 /// Run challenge solver with the specified runtime
 pub fn run(
     player: String,
