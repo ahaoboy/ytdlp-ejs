@@ -94,7 +94,10 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: canary
-
+      - uses: easy-install/easy-setup@v1
+        with:
+          url: |-
+            https://github.com/ahaoboy/quickjs-build
       - name: run
         run: |
           cargo run -q --example download_players
@@ -102,8 +105,6 @@ jobs:
           cargo install -q --path=. --force
 
           ls -lh
-          curl -fsSL https://raw.githubusercontent.com/easy-install/easy-install/main/install.sh | sh
-          ei https://github.com/ahaoboy/quickjs-build
       - name: time (yt-dlp integration)
         run: |
           EJS_BIN="$HOME/.cargo/bin/ejs"

@@ -23,8 +23,8 @@ tracing = ["dep:tracing", "dep:tracing-subscriber"]
 
 [dependencies]
 # https://github.com/swc-project/swc/issues/11942
-# swc_ecma_parser = { version = "41", default-features = false }
-swc_ecma_parser = { version = "41" }
+swc_ecma_parser = { version = "41", default-features = false }
+# swc_ecma_parser = { version = "41" }
 swc_ecma_ast = "25"
 swc_ecma_codegen = "28"
 swc_common = { version = "23" }

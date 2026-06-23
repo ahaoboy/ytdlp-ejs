@@ -58,7 +58,7 @@ fn main() {
 
     // Use a larger stack (8 MB) to handle deeply nested AST processing
     std::thread::Builder::new()
-        .stack_size(8 * 1024 * 1024)
+        .stack_size(32 * 1024 * 1024)
         .spawn(|| {
             if let Err(e) = run_main() {
                 eprintln!("ERROR: {}", e);
