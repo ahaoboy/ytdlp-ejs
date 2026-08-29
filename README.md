@@ -66,13 +66,21 @@ Output (JSON):
 }
 ```
 
-### Integration with yt-dlp
+### Integration with yt-dlp cli
 
 Use `--js-runtimes` to plug ejs into yt-dlp as an external JavaScript runtime.
 Enable `jsc_trace=true` to see challenge/response pairs in yt-dlp's verbose output.
 
 ```bash
  yt-dlp -v --extractor-args "youtube:jsc_trace=true" -F "https://www.youtube.com/watch?v=BnnbP7pCIvQ" --js-runtimes "quickjs:/path/ejs.exe"
+```
+
+### Integration with yt-dlp plugin
+
+```bash
+pip install ytdlp
+
+pip install ytdlp-jsc --target ~/.yt-dlp/plugins/
 ```
 
 ### As a Library
