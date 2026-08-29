@@ -78,9 +78,11 @@ Enable `jsc_trace=true` to see challenge/response pairs in yt-dlp's verbose outp
 ### Integration with yt-dlp plugin
 
 ```bash
-pip install ytdlp
+pip install yt-dlp
 
 pip install ytdlp-jsc --target ~/.yt-dlp/plugins/
+
+yt-dlp -v --extractor-args "youtube:jsc_trace=true" -F "https://www.youtube.com/watch?v=BnnbP7pCIvQ"
 ```
 
 ### As a Library
