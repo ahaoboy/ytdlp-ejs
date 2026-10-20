@@ -52,4 +52,4 @@ jobs:
           tag: nightly
           allowUpdates: true
           no-default-features: true
-          features: external,quickjs-oxide,qjs
+          features: cli,external,quickjs-oxide,qjs

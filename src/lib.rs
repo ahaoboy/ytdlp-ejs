@@ -4,6 +4,7 @@ pub mod builtin;
 pub mod director;
 pub mod provider;
 pub mod registry;
+pub mod runtime;
 pub mod test_data;
 pub mod trace;
 
@@ -16,12 +17,7 @@ pub use provider::{
     JsChallengeType,
 };
 pub use registry::RuntimeType;
-
-#[cfg(feature = "qjs")]
-pub use builtin::quickjs::run_script;
-
-#[cfg(all(feature = "quickjs-oxide", not(feature = "qjs")))]
-pub use builtin::quickjs_oxide::run_script;
+pub use runtime::ChallengeSolver;
 
 /// Run challenge solver with the specified runtime
 pub fn run(

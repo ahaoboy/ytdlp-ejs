@@ -1,6 +1,7 @@
 //! Deno JS Challenge Provider
 
 use crate::provider::JsChallengeError;
+use crate::runtime::ChallengeSolver;
 use crate::trace::{debug, error};
 use std::io::Write;
 use std::process::{Command, Stdio};
@@ -61,5 +62,15 @@ impl DenoJCP {
         let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
         debug!(%func_name, result_len = result.len(), result, exit_code = ?output.status.code(), "Deno solver returned");
         Ok(result)
+    }
+}
+
+impl ChallengeSolver for DenoJCP {
+    fn solve_n(&mut self, challenge: &str) -> Result<String, JsChallengeError> {
+        self.solve("n", challenge)
+    }
+
+    fn solve_sig(&mut self, challenge: &str) -> Result<String, JsChallengeError> {
+        self.solve("sig", challenge)
     }
 }

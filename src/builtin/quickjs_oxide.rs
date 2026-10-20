@@ -3,13 +3,11 @@
 //! The same interface as the `qjs` provider, backed by the pure-Rust
 //! [quickjs-oxide](https://crates.io/crates/quickjs-oxide) engine.
 
-use std::cell::RefCell;
-use std::rc::Rc;
-
-use quickjs_oxide::engine::api::core::{Context, JsString, Runtime, RuntimeError, Scope, Value};
+use quickjs_oxide::engine::api::core::{Context, JsString, Runtime, RuntimeError, Value};
 use quickjs_oxide_host::SystemHost;
 
 use crate::provider::JsChallengeError;
+use crate::runtime::ChallengeSolver;
 use crate::trace::{debug, info};
 
 /// quickjs-oxide-based JavaScript Challenge Provider
@@ -50,14 +48,6 @@ impl QuickJsOxideJCP {
 
         info!("quickjs-oxide code evaluation complete");
         Ok(Self { context })
-    }
-
-    pub fn solve_n(&self, challenge: &str) -> Result<String, JsChallengeError> {
-        self.call_solver("n", challenge)
-    }
-
-    pub fn solve_sig(&self, challenge: &str) -> Result<String, JsChallengeError> {
-        self.call_solver("sig", challenge)
     }
 
     fn call_solver(&self, func_name: &str, challenge: &str) -> Result<String, JsChallengeError> {
@@ -136,71 +126,23 @@ fn runtime_error(context: &Context, error: RuntimeError, action: &str) -> JsChal
     JsChallengeError::Runtime(format!("{}: {}", action, detail))
 }
 
-// ── Script mode (bare JS interpreter for yt-dlp integration) ────────────────
-//
-// When invoked as `ejs --script <file>`, we act as a QuickJS-compatible JS
-// runtime. yt-dlp passes the full solver program (lib + core + jsc() call)
-// via a temp file, and expects the JSON result from console.log() on stdout.
-
-/// Execute arbitrary JavaScript code using embedded quickjs-oxide.
-/// Captures all `console.log()` output and returns it as a String.
-/// Errors during JS evaluation are returned as `JsChallengeError::Runtime`.
-pub fn run_script(code: &str) -> Result<String, JsChallengeError> {
-    info!(
-        code_len = code.len(),
-        "Running script via embedded quickjs-oxide"
-    );
-
-    let runtime = Runtime::new_with_host_services(SystemHost::default());
-    let context = runtime
-        .new_context()
-        .map_err(|e| JsChallengeError::Runtime(format!("Failed to create context: {}", e)))?;
-
-    // Capture console.log output through a host function instead of writing
-    // to stdout, so script diagnostics never reach yt-dlp.
-    let output: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
-    let sink = Rc::clone(&output);
-    let global = context
-        .global_object()
-        .map_err(|e| JsChallengeError::Runtime(format!("Failed to get global object: {}", e)))?;
-    context
-        .define_function(
-            &global,
-            "__ejs_console_log",
-            1,
-            move |_: &mut Scope<'_>, message: String| -> Result<(), RuntimeError> {
-                sink.borrow_mut().push(message);
-                Ok(())
-            },
-        )
-        .map_err(|e| {
-            JsChallengeError::Runtime(format!("Failed to setup console capture: {}", e))
-        })?;
-
-    if let Err(error) = context.eval("var console = { log: __ejs_console_log };") {
-        return Err(runtime_error(
-            &context,
-            error,
-            "Failed to setup console capture",
-        ));
+impl ChallengeSolver for QuickJsOxideJCP {
+    fn solve_n(&mut self, challenge: &str) -> Result<String, JsChallengeError> {
+        self.call_solver("n", challenge)
     }
 
-    if let Err(error) = context.eval(code) {
-        return Err(runtime_error(&context, error, "Script execution error"));
+    fn solve_sig(&mut self, challenge: &str) -> Result<String, JsChallengeError> {
+        self.call_solver("sig", challenge)
     }
-
-    let output = output.borrow();
-    info!(lines = output.len(), "Script completed");
-    Ok(output.join("\n"))
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::runtime::ChallengeSolver;
 
     #[test]
     fn solves_challenges() {
-        let provider = QuickJsOxideJCP::new(
+        let mut provider = QuickJsOxideJCP::new(
             "_result.n = function (s) { return s + '!'; }; \
              _result.sig = function (s) { return s.split('').reverse().join(''); };",
         )
@@ -210,14 +152,8 @@ mod tests {
     }
 
     #[test]
-    fn captures_console_output() {
-        let output = run_script("console.log('a'); console.log(1 + 1);").expect("script");
-        assert_eq!(output, "a\n2");
-    }
-
-    #[test]
     fn reports_uncaught_exceptions() {
-        let provider =
+        let mut provider =
             QuickJsOxideJCP::new("_result.n = function () { throw new Error('boom'); };")
                 .expect("provider");
         let error = provider.solve_n("x").expect_err("solver throws");

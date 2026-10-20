@@ -1,11 +1,11 @@
 //! JS Challenge Request Director
 
-use crate::builtin::JsRuntimeProvider;
 use crate::builtin::preprocessor::preprocess_player;
 use crate::provider::{
     JsChallengeError, JsChallengeInput, JsChallengeOutput, JsChallengeRequest, JsChallengeResponse,
 };
-use crate::registry::RuntimeType;
+use crate::registry::{JsRuntimeProvider, RuntimeType};
+use crate::runtime::ChallengeSolver;
 use crate::trace::{debug, error, info, trace_span};
 
 /// Process input with specified runtime and return output
@@ -80,7 +80,7 @@ fn process_request(
     );
 
     debug!(?request.challenges, "Solving challenges");
-    match provider.solve_challenges(&request.challenge_type, &request.challenges) {
+    match provider.solve_challenges(request.challenge_type, &request.challenges) {
         Ok(data) => {
             info!(results = data.len(), ?data, "Challenges solved");
             JsChallengeResponse::Result { data }

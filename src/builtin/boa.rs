@@ -1,6 +1,7 @@
 //! Boa JS Challenge Provider
 
 use crate::provider::JsChallengeError;
+use crate::runtime::ChallengeSolver;
 use crate::trace::{debug, info};
 use boa_engine::object::ObjectInitializer;
 use boa_engine::property::Attribute;
@@ -30,14 +31,6 @@ impl BoaJCP {
         Ok(Self { context })
     }
 
-    pub fn solve_n(&mut self, challenge: &str) -> Result<String, JsChallengeError> {
-        self.call_solver("n", challenge)
-    }
-
-    pub fn solve_sig(&mut self, challenge: &str) -> Result<String, JsChallengeError> {
-        self.call_solver("sig", challenge)
-    }
-
     fn call_solver(
         &mut self,
         func_name: &str,
@@ -62,5 +55,15 @@ impl BoaJCP {
                 result
             })
             .map_err(|e| JsChallengeError::Runtime(format!("Failed to convert result: {}", e)))
+    }
+}
+
+impl ChallengeSolver for BoaJCP {
+    fn solve_n(&mut self, challenge: &str) -> Result<String, JsChallengeError> {
+        self.call_solver("n", challenge)
+    }
+
+    fn solve_sig(&mut self, challenge: &str) -> Result<String, JsChallengeError> {
+        self.call_solver("sig", challenge)
     }
 }

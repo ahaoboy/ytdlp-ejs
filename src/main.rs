@@ -1,9 +1,8 @@
-use std::env;
 use std::fs;
-use std::process;
 
+use clap::Parser;
 use ytdlp_ejs::trace::{debug, info};
-use ytdlp_ejs::{JsChallengeInput, RuntimeType, run};
+use ytdlp_ejs::{JsChallengeInput, RuntimeType, process_input, run};
 
 #[cfg(feature = "snmalloc")]
 #[global_allocator]
@@ -14,38 +13,74 @@ static ALLOC: snmalloc_rs::SnMalloc = snmalloc_rs::SnMalloc;
 /// set its native stack budget.
 const EVALUATION_STACK_SIZE: usize = 32 * 1024 * 1024;
 
-fn print_usage(program: &str) {
-    // yt-dlp detects QuickJS-compatible runtimes by parsing `--help` output.
-    // It runs `{exe} --help` and matches: r'^QuickJS(?:-ng)?\s+version\s+(\S+)'
-    // We report as quickjs-ng v0.12.0 (the minimum recommended) so yt-dlp
-    // does not emit a "versions older than ..." warning.
-    eprintln!(
-        "QuickJS-ng version 0.12.0  (ejs {})",
-        env!("CARGO_PKG_VERSION")
-    );
-    eprintln!();
-    eprintln!(
-        "Usage: {} [OPTIONS] <player> [<type>:<request> ...]",
-        program
-    );
-    eprintln!();
-    eprintln!("Options:");
-    eprintln!("  --runtime <runtime>  JavaScript runtime to use");
-    eprintln!(
-        "                       Available: {}",
+/// yt-dlp detects QuickJS-compatible runtimes by parsing `--help` output and
+/// matches `^QuickJS(?:-ng)?\s+version\s+(\S+)`. Report quickjs-ng v0.12.0
+/// (the minimum recommended) so it does not emit an outdated-version warning.
+const QUICKJS_HELP: &str = concat!(
+    "QuickJS-ng version 0.12.0  (ejs ",
+    env!("CARGO_PKG_VERSION"),
+    ")"
+);
+
+/// YouTube player signature solver.
+#[derive(Parser)]
+#[command(
+    name = "ejs",
+    version,
+    about = "YouTube player signature solver",
+    before_help = QUICKJS_HELP,
+    arg_required_else_help = true,
+    after_help = "Examples:\n  \
+                  ejs player.js n:ZdZIqFPQK-Ty8wId\n  \
+                  ejs --runtime quickjs-oxide player.js sig:...\n  \
+                  ejs --script solver_program.js"
+)]
+struct Cli {
+    /// JavaScript runtime to use.
+    #[arg(
+        long,
+        value_name = "RUNTIME",
+        value_parser = parse_runtime,
+        help = runtime_help()
+    )]
+    runtime: Option<RuntimeType>,
+
+    /// yt-dlp compatibility shim: solve a generated jsc() script.
+    #[arg(long, value_name = "FILE")]
+    script: Option<String>,
+
+    /// Player JavaScript file.
+    #[arg(
+        value_name = "PLAYER",
+        required_unless_present = "script",
+        conflicts_with = "script"
+    )]
+    player: Option<String>,
+
+    /// Challenge requests, e.g. n:... or sig:...
+    #[arg(
+        value_name = "REQUEST",
+        num_args = 1..,
+        required_unless_present = "script",
+        conflicts_with = "script"
+    )]
+    requests: Vec<String>,
+}
+
+fn parse_runtime(value: &str) -> Result<RuntimeType, String> {
+    RuntimeType::parse(value).ok_or_else(|| {
+        format!(
+            "unknown runtime '{value}'; available: {}",
+            RuntimeType::available_runtimes().join(", ")
+        )
+    })
+}
+
+fn runtime_help() -> String {
+    format!(
+        "JavaScript runtime to use (available: {})",
         RuntimeType::available_runtimes().join(", ")
-    );
-    eprintln!("  --script <file>      Execute JS file via embedded QuickJS (qjs compat)");
-    eprintln!("  --help, -h           Show this help message");
-    eprintln!("  --version, -V        Print version");
-    eprintln!();
-    eprintln!("Examples:");
-    eprintln!("  {} player.js n:ZdZIqFPQK-Ty8wId", program);
-    eprintln!(
-        "  {} --runtime deno player.js sig:gN7a-hudCuAuPH6f...",
-        program
-    );
-    eprintln!("  {} --script solver_program.js", program);
+    )
 }
 
 fn main() {
@@ -79,206 +114,91 @@ fn main() {
         .unwrap();
 }
 
-/// The embedded runtime used when `--runtime` is not given.
-fn default_runtime() -> Result<RuntimeType, Box<dyn std::error::Error>> {
-    match RuntimeType::default_runtime() {
-        Some(runtime) => Ok(runtime),
-        None => Err(
-            "No JavaScript runtime feature enabled (enable qjs, quickjs-oxide, boa, or external)"
-                .into(),
-        ),
-    }
-}
-
 fn run_main() -> Result<(), Box<dyn std::error::Error>> {
-    let args: Vec<String> = env::args().collect();
+    let cli = Cli::parse();
 
-    if args.len() < 2 {
-        print_usage(&args[0]);
-        process::exit(1);
+    let runtime_type = match cli.runtime {
+        Some(runtime) => runtime,
+        None => RuntimeType::default_runtime().ok_or(
+            "No JavaScript runtime feature enabled (enable qjs, quickjs-oxide, boa, or external)",
+        )?,
+    };
+
+    if let Some(script_path) = cli.script {
+        let code = fs::read_to_string(&script_path)?;
+        let input = extract_jsc_input(&code)
+            .ok_or("unsupported --script input: expected console.log(JSON.stringify(jsc(...)))")?;
+        let output = process_input(input, runtime_type);
+        println!("{}", serde_json::to_string(&output)?);
+        return Ok(());
     }
 
-    // ── Script mode (bare JS interpreter, used by yt-dlp as qjs replacement) ─
-    // yt-dlp invokes: ejs --script <temp_file.js>
-    // The temp file contains lib.js + core.js + console.log(JSON.stringify(jsc(...)))
-    // We execute it via embedded QuickJS and output the console.log result.
-    //
-    // IMPORTANT: yt-dlp checks `if proc.returncode or stderr` — any stderr
-    // output causes the request to fail. We must NOT write to stderr in the
-    // success path. All diagnostic logging goes through the tracing subscriber
-    // (controlled by RUST_LOG), which writes to stderr only when enabled.
-    #[cfg(any(feature = "qjs", feature = "quickjs-oxide"))]
-    if args.len() >= 3 && args[1] == "--script" {
-        let script_path = &args[2];
-        let code = fs::read_to_string(script_path)?;
-        info!(script_len = code.len(), path = %script_path, "Executing script file");
-
-        // ── Optimized path: extract jsc() JSON input, solve with Rust ─────
-        // yt-dlp's script is: lib.js + core.js + console.log(JSON.stringify(jsc({...})))
-        // Instead of running the entire JS program (which uses meriyah for
-        // preprocessing), we extract the JSON argument from the jsc() call
-        // and feed it directly into our native Rust preprocessing pipeline.
-        match extract_jsc_input(&code) {
-            Some(input) => {
-                info!("Extracted jsc input from script — using native Rust solver");
-                let output = ytdlp_ejs::process_input(input, default_runtime()?);
-                let json = serde_json::to_string(&output)?;
-                println!("{}", json);
-                return Ok(());
-            }
-            None => {
-                // Fallback: run the full script via embedded QuickJS
-                info!("Could not extract jsc input, falling back to QuickJS interpreter");
-                match ytdlp_ejs::run_script(&code) {
-                    Ok(output) => {
-                        print!("{}", output);
-                        return Ok(());
-                    }
-                    Err(e) => {
-                        eprintln!("{}", e);
-                        process::exit(1);
-                    }
-                }
-            }
-        }
-    }
-    #[cfg(not(any(feature = "qjs", feature = "quickjs-oxide")))]
-    if args.len() >= 3 && args[1] == "--script" {
-        return Err("--script mode requires the 'qjs' or 'quickjs-oxide' feature".into());
-    }
-
-    let mut player_path: Option<String> = None;
-    let mut requests_args = vec![];
-    let mut runtime_type = default_runtime()?;
-
-    let mut i = 1;
-    while i < args.len() {
-        let arg = &args[i];
-        match arg.as_str() {
-            "--runtime" => {
-                i += 1;
-                if i >= args.len() {
-                    return Err("--runtime requires an argument".into());
-                }
-                runtime_type = RuntimeType::parse(&args[i]).ok_or_else(|| {
-                    format!(
-                        "Unknown runtime '{}'. Available: {}",
-                        args[i],
-                        RuntimeType::available_runtimes().join(", ")
-                    )
-                })?;
-                debug!(?runtime_type, "Runtime selected");
-            }
-            "--help" | "-h" => {
-                print_usage(&args[0]);
-                return Ok(());
-            }
-            "--version" | "-V" => {
-                println!("ejs {}", env!("CARGO_PKG_VERSION"));
-                return Ok(());
-            }
-            _ if player_path.is_none() => player_path = Some(arg.clone()),
-            _ => requests_args.push(arg.clone()),
-        }
-        i += 1;
-    }
-
-    let player_path = player_path.ok_or("Missing player file argument")?;
+    let player_path = cli.player.ok_or("Missing player file argument")?;
     debug!(path = %player_path, "Loading player file");
     let player = fs::read_to_string(&player_path)?;
     info!(size = player.len(), path = %player_path, "Loaded player file");
 
-    if requests_args.is_empty() {
-        return Err("At least one request is required".into());
-    }
-
-    debug!(?requests_args, ?runtime_type, "Processing requests");
-    let output = run(player, runtime_type, requests_args)?;
-    let json = serde_json::to_string(&output)?;
-    println!("{}", json);
+    debug!(requests = ?cli.requests, ?runtime_type, "Processing requests");
+    let output = run(player, runtime_type, cli.requests)?;
+    println!("{}", serde_json::to_string(&output)?);
 
     info!("Done");
     Ok(())
 }
 
-// ── jsc() JSON extraction ───────────────────────────────────────────────────
-//
-// yt-dlp's script format is:
-//   {lib.js} + Object.assign(globalThis, lib); + {core.js}
-//   + console.log(JSON.stringify(jsc({...json input...})));
-//
-// This function extracts the JSON input from the jsc() call, avoiding the
-// need to run the meriyah-based JS solver inside QuickJS.
-
-/// Extracts the `JsChallengeInput` from a yt-dlp jsc() call script.
-/// Returns `None` if the extraction fails (e.g. unexpected format).
-///
-/// The script ends with:
-///   console.log(JSON.stringify(jsc({"type":"player","player":"...",...})));
-///
-/// We extract the JSON object between the last `jsc(` and its matching `)`.
-/// Braces inside JSON string values (e.g. the player source code) are safely
-/// skipped by tracking `"` delimiters and escape sequences.
+/// Extracts the `jsc({...})` JSON argument from a yt-dlp generated script.
 fn extract_jsc_input(code: &str) -> Option<JsChallengeInput> {
-    // Use the full marker for robustness — the player code could theoretically
-    // contain the literal text "jsc(" which would confuse a naive rfind.
-    let marker = "console.log(JSON.stringify(jsc(";
-    let jsc_pos = code.rfind(marker)?;
-    let start = jsc_pos + marker.len(); // position after "jsc("
-
-    // Find the JSON object by tracking braces
+    const MARKER: &str = "console.log(JSON.stringify(jsc(";
+    let start = code.rfind(MARKER)? + MARKER.len();
     let bytes = code.as_bytes();
-    let mut pos = start;
-    let mut brace_depth: i32 = 0;
-    let mut json_start = start;
+    let json_start = start + bytes[start..].iter().position(|&byte| byte == b'{')?;
 
-    // Find the opening '{' of the JSON object
-    while pos < bytes.len() {
-        match bytes[pos] {
-            b'{' => {
-                brace_depth = 1;
-                json_start = pos;
-                pos += 1;
-                break;
+    let mut depth = 0i32;
+    let mut in_string = false;
+    let mut escaped = false;
+    for (offset, &byte) in bytes[json_start..].iter().enumerate() {
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == b'"' {
+                in_string = false;
             }
-            _ => {
-                pos += 1;
-            }
+            continue;
         }
-    }
-
-    // Track braces to find the matching closing '}'.
-    // JSON string values (like the player source) are skipped so braces
-    // inside them don't affect the count.
-    while pos < bytes.len() && brace_depth > 0 {
-        match bytes[pos] {
-            b'{' => brace_depth += 1,
-            b'}' => brace_depth -= 1,
-            b'"' => {
-                pos += 1;
-                while pos < bytes.len() && bytes[pos] != b'"' {
-                    if bytes[pos] == b'\\' {
-                        pos += 1; // skip escaped char (handles \\, \", \n, etc.)
-                    }
-                    pos += 1;
+        match byte {
+            b'"' => in_string = true,
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth == 0 {
+                    let json = &code[json_start..json_start + offset + 1];
+                    return serde_json::from_str(json).ok();
                 }
             }
             _ => {}
         }
-        pos += 1;
+    }
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extracts_jsc_input() {
+        let script = r#"console.log(JSON.stringify(jsc({"type":"preprocessed","preprocessed_player":"_result.n = () => 1;","requests":[]})));"#;
+        assert!(matches!(
+            extract_jsc_input(script),
+            Some(JsChallengeInput::Preprocessed { .. })
+        ));
     }
 
-    if brace_depth != 0 {
-        debug!(
-            "jsc JSON extraction failed: unmatched braces (depth={})",
-            brace_depth
-        );
-        return None;
+    #[test]
+    fn ignores_braces_in_strings() {
+        let script = r#"console.log(JSON.stringify(jsc({"type":"preprocessed","preprocessed_player":"const x = {a: 1};","requests":[{"type":"n","challenges":["x"]}]})));"#;
+        assert!(extract_jsc_input(script).is_some());
     }
-
-    let json_end = pos; // position after the closing '}'
-    let json_str = &code[json_start..json_end];
-
-    debug!(json_len = json_str.len(), "Extracted jsc JSON input");
-    serde_json::from_str::<JsChallengeInput>(json_str).ok()
 }

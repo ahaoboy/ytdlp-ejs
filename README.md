@@ -20,18 +20,21 @@ A Rust port of [yt-dlp/ejs](https://github.com/yt-dlp/ejs).
 ### From Source
 
 ```bash
-# Default build (QuickJS + Boa + External runtimes)
+# Default build (CLI + quickjs-oxide + External runtimes)
 cargo build --release
 
-# QuickJS only (smallest binary)
-cargo build --release --no-default-features --features qjs
+# rquickjs QuickJS only
+cargo build --release --no-default-features --features cli,qjs
 
 # Boa only
-cargo build --release --no-default-features --features boa
+cargo build --release --no-default-features --features cli,boa
 
 # quickjs-oxide only
-cargo build --release --no-default-features --features quickjs-oxide
+cargo build --release --no-default-features --features cli,quickjs-oxide
 ```
+
+The `cli` feature (enabled by default) pulls in `clap` and builds the `ejs`
+binary. Omit it for library-only builds.
 
 Binary output: `target/release/ejs`
 
@@ -39,7 +42,7 @@ Binary output: `target/release/ejs`
 
 ```toml
 [dependencies]
-ejs = { git = "https://github.com/ahaoboy/ytdlp-ejs", features = ["qjs"] }
+ejs = { git = "https://github.com/ahaoboy/ytdlp-ejs", features = ["quickjs-oxide"] }
 ```
 
 ## Usage
@@ -48,7 +51,8 @@ ejs = { git = "https://github.com/ahaoboy/ytdlp-ejs", features = ["qjs"] }
 
 ```bash
 # Basic usage
-ejs <player_file> [n:<challenge>] [sig:<challenge>]
+ejs <player_file> n:<challenge>
+ejs <player_file> sig:<challenge>
 
 # Specify runtime
 ejs --runtime qjs player.js n:ZdZIqFPQK-Ty8wId
@@ -57,6 +61,9 @@ ejs --runtime boa player.js sig:gN7a-hudCuAuPH6f...
 ejs --runtime node player.js n:ZdZIqFPQK-Ty8wId sig:gN7a-hudCuAuPH6f...
 ejs --runtime deno player.js n:ZdZIqFPQK-Ty8wId
 ejs --runtime bun player.js n:ZdZIqFPQK-Ty8wId
+
+# yt-dlp compatibility shim
+ejs --script solver_program.js
 ```
 
 Output (JSON):
@@ -73,7 +80,8 @@ Output (JSON):
 ### Integration with yt-dlp cli
 
 Use `--js-runtimes` to plug ejs into yt-dlp as an external JavaScript runtime.
-Enable `jsc_trace=true` to see challenge/response pairs in yt-dlp's verbose output.
+The `--script` path is a compatibility shim for yt-dlp's generated `jsc(...)`
+program: it extracts the JSON input and solves with the native Rust pipeline.
 
 ```bash
  yt-dlp -v --extractor-args "youtube:jsc_trace=true" -F "https://www.youtube.com/watch?v=BnnbP7pCIvQ" --js-runtimes "quickjs:/path/ejs.exe"
@@ -115,8 +123,8 @@ let output = process_input_with_runtime(input, RuntimeType::QuickJS);
 
 | Runtime | Feature | Binary Size | External Dependency |
 |---------|---------|-------------|---------------------|
-| QuickJS | `qjs` | ~5MB | None (embedded) |
 | quickjs-oxide | `quickjs-oxide` | ~5MB | None (embedded) |
+| QuickJS | `qjs` | ~5MB | None (embedded) |
 | Boa | `boa` | ~8MB | None (embedded) |
 | Node | `external` | - | Requires Node.js |
 | Deno | `external` | - | Requires Deno |
