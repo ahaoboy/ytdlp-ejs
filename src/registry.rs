@@ -10,6 +10,8 @@ use crate::provider::JsChallengeError;
 pub enum RuntimeType {
     #[cfg(feature = "qjs")]
     QuickJS,
+    #[cfg(feature = "quickjs-oxide")]
+    QuickJsOxide,
     #[cfg(feature = "boa")]
     Boa,
     #[cfg(feature = "external")]
@@ -26,6 +28,8 @@ impl RuntimeType {
         match s.to_lowercase().as_str() {
             #[cfg(feature = "qjs")]
             "qjs" | "quickjs" => Some(Self::QuickJS),
+            #[cfg(feature = "quickjs-oxide")]
+            "quickjs-oxide" | "quickjs_oxide" | "qjs-oxide" => Some(Self::QuickJsOxide),
             #[cfg(feature = "external")]
             "deno" => Some(Self::Deno),
             #[cfg(feature = "boa")]
@@ -43,6 +47,8 @@ impl RuntimeType {
         vec![
             #[cfg(feature = "qjs")]
             "qjs",
+            #[cfg(feature = "quickjs-oxide")]
+            "quickjs-oxide",
             #[cfg(feature = "external")]
             "deno",
             #[cfg(feature = "boa")]
@@ -54,12 +60,32 @@ impl RuntimeType {
         ]
     }
 
+    /// The runtime used when none is requested: the first enabled embedded
+    /// runtime, preferring the original `qjs` provider.
+    pub fn default_runtime() -> Option<Self> {
+        if cfg!(feature = "qjs") {
+            Self::parse("qjs")
+        } else if cfg!(feature = "quickjs-oxide") {
+            Self::parse("quickjs-oxide")
+        } else if cfg!(feature = "boa") {
+            Self::parse("boa")
+        } else if cfg!(feature = "external") {
+            Self::parse("node")
+        } else {
+            None
+        }
+    }
+
     /// Create a provider instance for the specified runtime type
     pub fn create_provider(&self, code: &str) -> Result<JsRuntimeProvider, JsChallengeError> {
         match self {
             #[cfg(feature = "qjs")]
             RuntimeType::QuickJS => Ok(JsRuntimeProvider::QuickJS(
                 crate::builtin::quickjs::QuickJSJCP::new(code)?,
+            )),
+            #[cfg(feature = "quickjs-oxide")]
+            RuntimeType::QuickJsOxide => Ok(JsRuntimeProvider::QuickJsOxide(
+                crate::builtin::quickjs_oxide::QuickJsOxideJCP::new(code)?,
             )),
             #[cfg(feature = "boa")]
             RuntimeType::Boa => Ok(JsRuntimeProvider::Boa(Box::new(

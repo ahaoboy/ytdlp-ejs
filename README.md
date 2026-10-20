@@ -11,7 +11,7 @@ A Rust port of [yt-dlp/ejs](https://github.com/yt-dlp/ejs).
 - Parse YouTube player JavaScript code
 - Extract and execute signature (`sig`) decryption functions
 - Extract and execute throttle parameter (`n`) decryption functions
-- Multiple JavaScript runtime support: QuickJS, Boa, Node, Deno, Bun
+- Multiple JavaScript runtime support: QuickJS, quickjs-oxide, Boa, Node, Deno, Bun
 - Cross-platform support (Windows, Linux, macOS)
 - Standalone binary under 5MB (with SWC + QuickJS)
 
@@ -28,6 +28,9 @@ cargo build --release --no-default-features --features qjs
 
 # Boa only
 cargo build --release --no-default-features --features boa
+
+# quickjs-oxide only
+cargo build --release --no-default-features --features quickjs-oxide
 ```
 
 Binary output: `target/release/ejs`
@@ -49,6 +52,7 @@ ejs <player_file> [n:<challenge>] [sig:<challenge>]
 
 # Specify runtime
 ejs --runtime qjs player.js n:ZdZIqFPQK-Ty8wId
+ejs --runtime quickjs-oxide player.js n:ZdZIqFPQK-Ty8wId
 ejs --runtime boa player.js sig:gN7a-hudCuAuPH6f...
 ejs --runtime node player.js n:ZdZIqFPQK-Ty8wId sig:gN7a-hudCuAuPH6f...
 ejs --runtime deno player.js n:ZdZIqFPQK-Ty8wId
@@ -112,6 +116,7 @@ let output = process_input_with_runtime(input, RuntimeType::QuickJS);
 | Runtime | Feature | Binary Size | External Dependency |
 |---------|---------|-------------|---------------------|
 | QuickJS | `qjs` | ~5MB | None (embedded) |
+| quickjs-oxide | `quickjs-oxide` | ~5MB | None (embedded) |
 | Boa | `boa` | ~8MB | None (embedded) |
 | Node | `external` | - | Requires Node.js |
 | Deno | `external` | - | Requires Deno |

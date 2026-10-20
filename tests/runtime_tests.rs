@@ -222,6 +222,32 @@ fn test_qjs_runtime() {
     );
 }
 
+#[cfg(feature = "quickjs-oxide")]
+#[test]
+fn test_quickjs_oxide_runtime() {
+    let (passed, failed, errors) = run_tests_with_runtime(RuntimeType::QuickJsOxide);
+
+    if !errors.is_empty() {
+        eprintln!("\n=== quickjs-oxide Runtime Errors ===");
+        for error in &errors {
+            eprintln!("{}", error);
+        }
+    }
+
+    eprintln!(
+        "\nquickjs-oxide Results: {}/{} passed",
+        passed,
+        passed + failed
+    );
+
+    assert!(
+        failed == 0 || passed > 0,
+        "quickjs-oxide: {} tests failed out of {}",
+        failed,
+        passed + failed
+    );
+}
+
 #[cfg(feature = "boa")]
 #[test]
 fn test_boa_runtime() {

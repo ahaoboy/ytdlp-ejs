@@ -9,6 +9,9 @@ pub mod preprocessor;
 #[cfg(feature = "qjs")]
 pub mod quickjs;
 
+#[cfg(feature = "quickjs-oxide")]
+pub mod quickjs_oxide;
+
 #[cfg(feature = "boa")]
 pub mod boa;
 
@@ -28,6 +31,8 @@ use std::collections::HashMap;
 pub enum JsRuntimeProvider {
     #[cfg(feature = "qjs")]
     QuickJS(quickjs::QuickJSJCP),
+    #[cfg(feature = "quickjs-oxide")]
+    QuickJsOxide(quickjs_oxide::QuickJsOxideJCP),
     #[cfg(feature = "boa")]
     Boa(Box<boa::BoaJCP>),
     #[cfg(feature = "external")]
@@ -43,6 +48,8 @@ impl JsRuntimeProvider {
         match self {
             #[cfg(feature = "qjs")]
             Self::QuickJS(p) => p.solve_n(challenge),
+            #[cfg(feature = "quickjs-oxide")]
+            Self::QuickJsOxide(p) => p.solve_n(challenge),
             #[cfg(feature = "boa")]
             Self::Boa(p) => p.solve_n(challenge),
             #[cfg(feature = "external")]
@@ -58,6 +65,8 @@ impl JsRuntimeProvider {
         match self {
             #[cfg(feature = "qjs")]
             Self::QuickJS(p) => p.solve_sig(challenge),
+            #[cfg(feature = "quickjs-oxide")]
+            Self::QuickJsOxide(p) => p.solve_sig(challenge),
             #[cfg(feature = "boa")]
             Self::Boa(p) => p.solve_sig(challenge),
             #[cfg(feature = "external")]

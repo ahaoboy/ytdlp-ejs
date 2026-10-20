@@ -9,6 +9,11 @@ use ytdlp_ejs::{JsChallengeInput, RuntimeType, run};
 #[global_allocator]
 static ALLOC: snmalloc_rs::SnMalloc = snmalloc_rs::SnMalloc;
 
+/// Stack reserved for the evaluation thread. SWC preprocessing and the
+/// embedded JS engines both recurse; quickjs-oxide also uses this size to
+/// set its native stack budget.
+const EVALUATION_STACK_SIZE: usize = 32 * 1024 * 1024;
+
 fn print_usage(program: &str) {
     // yt-dlp detects QuickJS-compatible runtimes by parsing `--help` output.
     // It runs `{exe} --help` and matches: r'^QuickJS(?:-ng)?\s+version\s+(\S+)'
@@ -56,10 +61,14 @@ fn main() {
         .with_target(false)
         .init();
 
-    // Use a larger stack (8 MB) to handle deeply nested AST processing
+    // Use a larger stack to handle deeply nested AST processing and JS
+    // evaluation.
     std::thread::Builder::new()
-        .stack_size(32 * 1024 * 1024)
+        .stack_size(EVALUATION_STACK_SIZE)
         .spawn(|| {
+            #[cfg(feature = "quickjs-oxide")]
+            quickjs_oxide::engine::api::core::declare_thread_stack(EVALUATION_STACK_SIZE);
+
             if let Err(e) = run_main() {
                 eprintln!("ERROR: {}", e);
                 std::process::exit(1);
@@ -68,6 +77,17 @@ fn main() {
         .unwrap()
         .join()
         .unwrap();
+}
+
+/// The embedded runtime used when `--runtime` is not given.
+fn default_runtime() -> Result<RuntimeType, Box<dyn std::error::Error>> {
+    match RuntimeType::default_runtime() {
+        Some(runtime) => Ok(runtime),
+        None => Err(
+            "No JavaScript runtime feature enabled (enable qjs, quickjs-oxide, boa, or external)"
+                .into(),
+        ),
+    }
 }
 
 fn run_main() -> Result<(), Box<dyn std::error::Error>> {
@@ -87,7 +107,7 @@ fn run_main() -> Result<(), Box<dyn std::error::Error>> {
     // output causes the request to fail. We must NOT write to stderr in the
     // success path. All diagnostic logging goes through the tracing subscriber
     // (controlled by RUST_LOG), which writes to stderr only when enabled.
-    #[cfg(feature = "qjs")]
+    #[cfg(any(feature = "qjs", feature = "quickjs-oxide"))]
     if args.len() >= 3 && args[1] == "--script" {
         let script_path = &args[2];
         let code = fs::read_to_string(script_path)?;
@@ -101,7 +121,7 @@ fn run_main() -> Result<(), Box<dyn std::error::Error>> {
         match extract_jsc_input(&code) {
             Some(input) => {
                 info!("Extracted jsc input from script — using native Rust solver");
-                let output = ytdlp_ejs::process_input(input, ytdlp_ejs::RuntimeType::QuickJS);
+                let output = ytdlp_ejs::process_input(input, default_runtime()?);
                 let json = serde_json::to_string(&output)?;
                 println!("{}", json);
                 return Ok(());
@@ -122,14 +142,14 @@ fn run_main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
-    #[cfg(not(feature = "qjs"))]
+    #[cfg(not(any(feature = "qjs", feature = "quickjs-oxide")))]
     if args.len() >= 3 && args[1] == "--script" {
-        return Err("--script mode requires the 'qjs' feature".into());
+        return Err("--script mode requires the 'qjs' or 'quickjs-oxide' feature".into());
     }
 
     let mut player_path: Option<String> = None;
     let mut requests_args = vec![];
-    let mut runtime_type = RuntimeType::QuickJS;
+    let mut runtime_type = default_runtime()?;
 
     let mut i = 1;
     while i < args.len() {
