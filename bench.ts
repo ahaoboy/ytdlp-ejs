@@ -53,7 +53,7 @@ for (let i = 0; i < args.length; i++) {
 }
 
 if (runtimes.length === 0) {
-  runtimes.push("qjs", "deno", "node", "bun");
+  runtimes.push("qjs", "quickjs-oxide", "deno", "node", "bun");
 }
 
 console.log(`${BLUE}Using executable: ${EXE}${NC}`);
