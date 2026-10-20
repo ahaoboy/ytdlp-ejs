@@ -14,7 +14,7 @@ path = "src/main.rs"
 required-features = ["cli"]
 
 [features]
-default = ["cli", "quickjs-oxide", "external"]
+default = ["cli", "quickjs-oxide", "external", "qjs"]
 cli = ["dep:clap"]
 qjs = ["dep:rquickjs"]
 quickjs-oxide = ["dep:quickjs-oxide", "dep:quickjs-oxide-host"]

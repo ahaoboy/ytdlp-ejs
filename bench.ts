@@ -108,7 +108,9 @@ function detectAvailableRuntimes(): Set<string> | null {
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "ignore"],
     });
-    const match = help.match(/available:\s*(.+)$/im);
+    // clap wraps long help lines, so flatten whitespace before parsing.
+    const flat = help.replace(/\s+/g, " ");
+    const match = flat.match(/available:\s*([^)]+)\)/i);
     if (!match) return null;
     return new Set(
       match[1]
